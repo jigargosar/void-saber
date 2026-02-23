@@ -1,12 +1,14 @@
+import * as THREE from 'three';
+
 // Theme colors - HSL only
 export const COLORS = {
   // Sabers and left cubes
-  CYAN: new (require('three').Color)().setHSL(185 / 360, 1.0, 0.55),
+  CYAN: new THREE.Color().setHSL(185 / 360, 1.0, 0.55),
   // Sabers and right cubes
-  MAGENTA: new (require('three').Color)().setHSL(310 / 360, 1.0, 0.60),
+  MAGENTA: new THREE.Color().setHSL(310 / 360, 1.0, 0.60),
   // Environment
-  DARK_VOID: new (require('three').Color)().setHSL(0, 0, 0.05),
-  NEON_WHITE: new (require('three').Color)().setHSL(0, 0, 1.0),
+  DARK_VOID: new THREE.Color().setHSL(0, 0, 0.05),
+  NEON_WHITE: new THREE.Color().setHSL(0, 0, 1.0),
 };
 
 // Gameplay constants
