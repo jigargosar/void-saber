@@ -15,6 +15,9 @@ importers:
       '@types/three':
         specifier: ^0.183.1
         version: 0.183.1
+      '@vitejs/plugin-basic-ssl':
+        specifier: ^2.1.4
+        version: 2.1.4(vite@7.3.1)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -323,6 +326,12 @@ packages:
   '@types/webxr@0.5.24':
     resolution: {integrity: sha512-h8fgEd/DpoS9CBrjEQXR+dIDraopAEfu4wYVNY2tEPwk60stPWhvZMf4Foo5FakuQ7HFZoa8WceaWFervK2Ovg==}
 
+  '@vitejs/plugin-basic-ssl@2.1.4':
+    resolution: {integrity: sha512-HXciTXN/sDBYWgeAD4V4s0DN0g72x5mlxQhHxtYu3Tt8BLa6MzcJZUyDVFCdtjNs3bfENVHVzOsmooTVuNgAAw==}
+    engines: {node: ^18.0.0 || ^20.0.0 || >=22.0.0}
+    peerDependencies:
+      vite: ^6.0.0 || ^7.0.0
+
   '@webgpu/types@0.1.69':
     resolution: {integrity: sha512-RPmm6kgRbI8e98zSD3RVACvnuktIja5+yLgDAkTmxLr90BEwdTXRQWNLF3ETTTyH/8mKhznZuN5AveXYFEsMGQ==}
 
@@ -602,6 +611,10 @@ snapshots:
       meshoptimizer: 1.0.1
 
   '@types/webxr@0.5.24': {}
+
+  '@vitejs/plugin-basic-ssl@2.1.4(vite@7.3.1)':
+    dependencies:
+      vite: 7.3.1
 
   '@webgpu/types@0.1.69': {}
 
