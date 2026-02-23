@@ -1,47 +1,46 @@
 export type GameState = 'menu' | 'countdown' | 'playing' | 'paused' | 'results';
 
-interface StateTransitionCallbacks {
-  onEnter?: () => void | Promise<void>;
-  onExit?: () => void | Promise<void>;
+interface StateHandlers {
+  onEnter?: () => void;
+  onExit?: () => void;
+  onUpdate?: (dt: number) => void;
 }
 
 class StateMachine {
   private currentState: GameState = 'menu';
-  private callbacks = new Map<GameState, StateTransitionCallbacks>();
+  private handlers: Partial<Record<GameState, StateHandlers>> = {};
 
-  constructor() {
-    this.callbacks.set('menu', {});
-    this.callbacks.set('countdown', {});
-    this.callbacks.set('playing', {});
-    this.callbacks.set('paused', {});
-    this.callbacks.set('results', {});
+  setState(state: GameState) {
+    if (state === this.currentState) return;
+
+    // Exit current state
+    const exitHandler = this.handlers[this.currentState];
+    if (exitHandler?.onExit) {
+      exitHandler.onExit();
+    }
+
+    // Transition
+    this.currentState = state;
+
+    // Enter new state
+    const enterHandler = this.handlers[state];
+    if (enterHandler?.onEnter) {
+      enterHandler.onEnter();
+    }
   }
 
-  getCurrentState(): GameState {
+  getState(): GameState {
     return this.currentState;
   }
 
-  isState(state: GameState): boolean {
-    return this.currentState === state;
+  on(state: GameState, handlers: StateHandlers) {
+    this.handlers[state] = handlers;
   }
 
-  on(state: GameState, callbacks: StateTransitionCallbacks): void {
-    this.callbacks.set(state, callbacks);
-  }
-
-  async transition(nextState: GameState): Promise<void> {
-    if (nextState === this.currentState) return;
-
-    const exitCallbacks = this.callbacks.get(this.currentState);
-    if (exitCallbacks?.onExit) {
-      await exitCallbacks.onExit();
-    }
-
-    this.currentState = nextState;
-
-    const enterCallbacks = this.callbacks.get(this.currentState);
-    if (enterCallbacks?.onEnter) {
-      await enterCallbacks.onEnter();
+  update(dt: number) {
+    const handler = this.handlers[this.currentState];
+    if (handler?.onUpdate) {
+      handler.onUpdate(dt);
     }
   }
 }

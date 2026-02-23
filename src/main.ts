@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
-import { stateMachine, type GameState } from './state';
-import { COLORS } from './config';
+import { stateMachine } from './state';
 
 // Renderer setup
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+if (!canvas) throw new Error('Canvas element not found');
+
 const renderer = new THREE.WebGLRenderer({
   canvas,
   antialias: true,
@@ -16,7 +17,7 @@ renderer.xr.enabled = true;
 
 // Scene and camera
 const scene = new THREE.Scene();
-scene.background = COLORS.DARK_VOID;
+scene.background = new THREE.Color().setHSL(0, 0, 0); // Dark void
 
 const camera = new THREE.PerspectiveCamera(
   75,
@@ -25,14 +26,6 @@ const camera = new THREE.PerspectiveCamera(
   1000
 );
 camera.position.set(0, 1.6, 0);
-
-// Lighting
-const light = new THREE.AmbientLight(0xffffff, 0.5);
-scene.add(light);
-
-const pointLight = new THREE.PointLight(0xffffff, 1, 100);
-pointLight.position.set(10, 10, 10);
-scene.add(pointLight);
 
 // VR button
 const vrButton = VRButton.createButton(renderer);
@@ -45,63 +38,68 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Setup state callbacks
+// Setup state handlers
 stateMachine.on('menu', {
   onEnter: () => {
-    console.log('Entering menu state');
+    console.log('State: menu');
+    scene.clear();
   },
   onExit: () => {
-    console.log('Exiting menu state');
+    console.log('Exiting: menu');
   },
 });
 
 stateMachine.on('countdown', {
   onEnter: () => {
-    console.log('Entering countdown state');
+    console.log('State: countdown');
+    scene.clear();
   },
   onExit: () => {
-    console.log('Exiting countdown state');
+    console.log('Exiting: countdown');
   },
 });
 
 stateMachine.on('playing', {
   onEnter: () => {
-    console.log('Entering playing state');
+    console.log('State: playing');
+    scene.clear();
   },
   onExit: () => {
-    console.log('Exiting playing state');
+    console.log('Exiting: playing');
   },
 });
 
 stateMachine.on('paused', {
   onEnter: () => {
-    console.log('Entering paused state');
+    console.log('State: paused');
   },
   onExit: () => {
-    console.log('Exiting paused state');
+    console.log('Exiting: paused');
   },
 });
 
 stateMachine.on('results', {
   onEnter: () => {
-    console.log('Entering results state');
+    console.log('State: results');
+    scene.clear();
   },
   onExit: () => {
-    console.log('Exiting results state');
+    console.log('Exiting: results');
   },
 });
 
-// Test geometry - simple rotating cube
-const geometry = new THREE.BoxGeometry(1, 1, 1);
-const material = new THREE.MeshStandardMaterial({ color: COLORS.CYAN });
-const cube = new THREE.Mesh(geometry, material);
-cube.position.z = -5;
-scene.add(cube);
+// Initialize to menu state
+stateMachine.setState('menu');
 
-// Animation loop
+// Clock for delta time
+let lastTime = performance.now();
+
+// XR-compatible render loop
 renderer.setAnimationLoop((time, frame) => {
-  cube.rotation.x += 0.01;
-  cube.rotation.y += 0.01;
+  const now = performance.now();
+  const dt = (now - lastTime) / 1000;
+  lastTime = now;
 
+  stateMachine.update(dt);
   renderer.render(scene, camera);
 });
