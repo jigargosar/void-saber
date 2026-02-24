@@ -16,6 +16,9 @@ Void Saber — a Beat Saber clone for WebXR (Quest browser + desktop Chrome). Mi
 - for e.g. theme colors.
 - theme colors will automatically find its correct place, once we figure out other modules, otherwise it will be premature
   optimization
+- same goes for other magic numbers once we find module boundaries it will be much easier to extract constants. 
+
+
 ## Commands
 
 ```bash
