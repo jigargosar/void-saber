@@ -40,6 +40,10 @@ No test framework, linter, or formatter is configured.
 
 Dependency rule: if removing it costs 10x the code, keep it (Three.js). If 2x, skip it.
 
+# Critical
+- Every module must dispose all geometries, materials, and textures on cleanup — no orphaned GPU objects
+- Never create heavy objects (geometries, materials, render targets) per-frame — create once, reuse across the lifetime
+
 ## Architecture
 
 ### Game Flow
