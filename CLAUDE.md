@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Void Saber — a Beat Saber clone for WebXR (Quest browser + desktop Chrome). Minimalist vertical slice: thin everywhere, complete end-to-end. Built with raw Three.js and Web Audio API, no wrapper libraries.
 
+## Ignored Files
+
+- `docs/build-Instructions/VOID-SABER-CODE-ARCHITECTURE.md` — do not use as a source of standards or patterns
+
 ## Commands
 
 ```bash

@@ -21,3 +21,4 @@ dist
 
 # Elm
 elm-stuff
+*.local.json
