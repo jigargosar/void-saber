@@ -45,10 +45,9 @@ All game logic flows through a finite state machine (`state.ts`). States: `menu 
 
 ### Module Patterns (four kinds, no others)
 
-1. **Pure Config** (`config.ts`) — data-only exports, zero imports from project files, no functions
-2. **System Class** (`state.ts`) — single instance, minimal public API, private internals
-3. **Factory Function** (`gameplay/sabers.ts`) — creates objects, returns interface with `root`, `update(dt)`, `dispose()`
-4. **Entry Point** (`main.ts`) — wires systems, owns animation loop, zero game logic
+1. **System Class** (`state.ts`) — single instance, minimal public API, private internals
+2. **Factory Function** (`gameplay/sabers.ts`) — creates objects, returns interface with `root`, `update(dt)`, `dispose()`
+3. **Entry Point** (`main.ts`) — wires systems, owns animation loop, zero game logic
 
 ### Dependency Flow (unidirectional, no cycles)
 
@@ -62,21 +61,6 @@ A file never imports from a file below it in this chain.
 
 Every game system: `create → attach to scene → update(dt) each frame → dispose on state exit`. No system starts itself, adds itself to the scene, or runs its own loop. `main.ts` controls everything through state handlers. Every `onEnter` has a matching `onExit` that undoes everything.
 
-### Planned File Structure
-
-```
-src/
-├── main.ts           # Entry point, renderer, XR session, animation loop
-├── config.ts         # Theme colors, gameplay constants, timing
-├── state.ts          # Game state machine
-├── scene/            # Corridor, beat-reactive environment, lighting
-├── gameplay/         # Cubes, sabers, trails, collision, scoring, particles
-├── audio/            # Web Audio engine, drums, synths, songs
-├── beatmap/          # Types, loader, JSON maps
-├── xr/               # Controllers, haptics, pointer, hands
-├── ui/               # 3D menu panels, HUD, results, text rendering
-└── utils/            # Geometry, object pool, math, beat clock
-```
 
 ## Key Rules
 
