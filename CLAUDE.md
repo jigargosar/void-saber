@@ -11,6 +11,9 @@ Void Saber — a Beat Saber clone for WebXR (Quest browser + desktop Chrome). Mi
 - docs\build-Instructions\VOID-SABER-BUILD-INSTRUCTIONS.md
 - docs\build-Instructions\VOID-SABER-CODE-ARCHITECTURE.md
 
+## Constants
+- Most of the constants are dynamic configuration to be changed by user
+- for e.g. theme colors.
 
 ## Commands
 
