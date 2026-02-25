@@ -89,36 +89,17 @@ export function createTrail(
       const bp = bladeBase.getAbsolutePosition();
       const tp = bladeTip.getAbsolutePosition();
 
-      // Distance from live sample's last position to current blade tip
-      const prevBx = positions[LIVE_OFFSET];
-      const prevBy = positions[LIVE_OFFSET + 1];
-      const prevBz = positions[LIVE_OFFSET + 2];
-      const prevTx = positions[LIVE_OFFSET + 3];
-      const prevTy = positions[LIVE_OFFSET + 4];
-      const prevTz = positions[LIVE_OFFSET + 5];
-      const dx = tp.x - prevTx;
-      const dy = tp.y - prevTy;
-      const dz = tp.z - prevTz;
+      // Distance from live sample's last tip position to current tip
+      const dx = tp.x - positions[LIVE_OFFSET + 3];
+      const dy = tp.y - positions[LIVE_OFFSET + 4];
+      const dz = tp.z - positions[LIVE_OFFSET + 5];
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-      // Emit multiple interpolated samples to keep spacing uniform
+      // Emit one sample per frame at actual controller position (preserves arc)
       if (dist > EMIT_THRESHOLD) {
-        const count = Math.min(Math.floor(dist / EMIT_THRESHOLD), LIVE);
-        for (let s = 1; s <= count; s++) {
-          const frac = s / count;
-          positions.copyWithin(0, FLOATS_PER_SAMPLE);
-          ages.copyWithin(0, 1);
-          ages[LIVE] = 0;
-
-          // Lerp between previous live position and current blade
-          const offset = LIVE_OFFSET;
-          positions[offset]     = prevBx + (bp.x - prevBx) * frac;
-          positions[offset + 1] = prevBy + (bp.y - prevBy) * frac;
-          positions[offset + 2] = prevBz + (bp.z - prevBz) * frac;
-          positions[offset + 3] = prevTx + (tp.x - prevTx) * frac;
-          positions[offset + 4] = prevTy + (tp.y - prevTy) * frac;
-          positions[offset + 5] = prevTz + (tp.z - prevTz) * frac;
-        }
+        positions.copyWithin(0, FLOATS_PER_SAMPLE);
+        ages.copyWithin(0, 1);
+        ages[LIVE] = 0;
       }
 
       // Live sample always tracks the blade
