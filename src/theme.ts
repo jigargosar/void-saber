@@ -2,6 +2,10 @@ import { Color3 } from '@babylonjs/core/Maths/math';
 
 export type Hand = 'left' | 'right';
 
+export function isHand(value: string): value is Hand {
+  return value === 'left' || value === 'right';
+}
+
 export interface Theme {
   leftHand:  Color3;
   rightHand: Color3;

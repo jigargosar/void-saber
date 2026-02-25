@@ -13,7 +13,7 @@ import '@babylonjs/loaders/glTF';
 
 import { Theme } from './theme';
 import { createEnvironment } from './environment';
-import { createSabers } from './sabers';
+import { createSaberManager } from './saberManager';
 
 const cyan    = new Color3(0, 0.9, 0.95);
 const magenta = new Color3(0.95, 0, 0.7);
@@ -46,7 +46,7 @@ async function setupWebXR(scene: Scene): Promise<void> {
     disableHandTracking: true,
     inputOptions: { doNotLoadControllerMeshes: true },
   });
-  createSabers(scene, xr.input, theme);
+  createSaberManager(scene, xr.input, theme);
   console.log('WebXR ready');
 }
 
