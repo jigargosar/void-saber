@@ -4,15 +4,24 @@
  */
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
-import { Vector3 } from '@babylonjs/core/Maths/math';
+import { Vector3, Color3 } from '@babylonjs/core/Maths/math';
 import { FreeCamera } from '@babylonjs/core/Cameras/freeCamera';
 import { WebXRDefaultExperience } from '@babylonjs/core/XR/webXRDefaultExperience';
 
 import '@babylonjs/core/Helpers/sceneHelpers';
 import '@babylonjs/loaders/glTF';
 
+import { Theme } from './theme';
 import { createEnvironment } from './environment';
-import { createControllers } from './controllers';
+import { createSabers } from './sabers';
+
+const cyan    = new Color3(0, 0.9, 0.95);
+const magenta = new Color3(0.95, 0, 0.7);
+
+const theme: Theme = {
+  leftHand:  cyan,
+  rightHand: magenta,
+};
 
 function createEngine(): Engine {
   const canvas = document.getElementById('canvas');
@@ -37,7 +46,7 @@ async function setupWebXR(scene: Scene): Promise<void> {
     disableHandTracking: true,
     inputOptions: { doNotLoadControllerMeshes: true },
   });
-  createControllers(scene, xr.input);
+  createSabers(scene, xr.input, theme);
   console.log('WebXR ready');
 }
 
@@ -45,7 +54,7 @@ async function main(): Promise<void> {
   const engine = createEngine();
   const scene  = createScene(engine);
 
-  createEnvironment(scene);
+  createEnvironment(scene, theme);
   setupWebXR(scene).catch(console.error);
 
   engine.runRenderLoop(() => scene.render());

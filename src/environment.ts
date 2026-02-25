@@ -5,10 +5,9 @@ import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { PointLight } from '@babylonjs/core/Lights/pointLight';
 import { GlowLayer } from '@babylonjs/core/Layers/glowLayer';
 import { Vector3, Color3, Color4 } from '@babylonjs/core/Maths/math';
+import { Theme } from './theme';
 
-const CYAN    = new Color3(0, 0.9, 0.95);
-const MAGENTA = new Color3(0.95, 0, 0.7);
-const BG      = new Color3(0.01, 0.01, 0.03);
+const BG = new Color3(0.01, 0.01, 0.03);
 
 const FOG_BASE     = 0.04;
 const PILLAR_COUNT = 14;
@@ -36,7 +35,7 @@ function setupLighting(scene: Scene): GlowLayer {
   return glow;
 }
 
-function setupTrack(scene: Scene): void {
+function setupTrack(scene: Scene, theme: Theme): void {
   const track = MeshBuilder.CreateGround('track', { width: 4, height: 200 }, scene);
   track.position.z = -100;
   const trackMat = new StandardMaterial('trackMat', scene);
@@ -44,31 +43,31 @@ function setupTrack(scene: Scene): void {
   trackMat.specularColor = Color3.Black();
   track.material = trackMat;
 
-  const cyanMat = new StandardMaterial('edgeCyan', scene);
-  cyanMat.emissiveColor = CYAN;
-  cyanMat.disableLighting = true;
+  const leftMat = new StandardMaterial('edgeLeft', scene);
+  leftMat.emissiveColor = theme.leftHand;
+  leftMat.disableLighting = true;
 
-  const magMat = new StandardMaterial('edgeMag', scene);
-  magMat.emissiveColor = MAGENTA;
-  magMat.disableLighting = true;
+  const rightMat = new StandardMaterial('edgeRight', scene);
+  rightMat.emissiveColor = theme.rightHand;
+  rightMat.disableLighting = true;
 
   const edgeL = MeshBuilder.CreateBox('edgeL', { width: 0.03, height: 0.02, depth: 200 }, scene);
   edgeL.position.set(-2, 0.01, -100);
-  edgeL.material = cyanMat;
+  edgeL.material = leftMat;
 
   const edgeR = MeshBuilder.CreateBox('edgeR', { width: 0.03, height: 0.02, depth: 200 }, scene);
   edgeR.position.set(2, 0.01, -100);
-  edgeR.material = magMat;
+  edgeR.material = rightMat;
 }
 
-function setupPillars(scene: Scene): StandardMaterial[] {
+function setupPillars(scene: Scene, theme: Theme): StandardMaterial[] {
   const mats: StandardMaterial[] = [];
 
   for (let i = 0; i < PILLAR_COUNT; i++) {
     const z = -i * PILLAR_GAP;
 
     const mL = new StandardMaterial(`pillarMatL${i}`, scene);
-    mL.emissiveColor = CYAN;
+    mL.emissiveColor = theme.leftHand;
     mL.disableLighting = true;
     const pL = MeshBuilder.CreateBox(`pillarL${i}`, { width: 0.12, height: 8, depth: 0.12 }, scene);
     pL.position.set(-3.5, 4, z);
@@ -76,7 +75,7 @@ function setupPillars(scene: Scene): StandardMaterial[] {
     mats.push(mL);
 
     const mR = new StandardMaterial(`pillarMatR${i}`, scene);
-    mR.emissiveColor = MAGENTA;
+    mR.emissiveColor = theme.rightHand;
     mR.disableLighting = true;
     const pR = MeshBuilder.CreateBox(`pillarR${i}`, { width: 0.12, height: 8, depth: 0.12 }, scene);
     pR.position.set(3.5, 4, z);
@@ -85,12 +84,12 @@ function setupPillars(scene: Scene): StandardMaterial[] {
 
     if (i < 2) {
       const lL = new PointLight(`pointL${i}`, new Vector3(-3.5, 0.5, z), scene);
-      lL.diffuse = CYAN;
+      lL.diffuse = theme.leftHand;
       lL.intensity = 0.5;
       lL.range = 4;
 
       const lR = new PointLight(`pointR${i}`, new Vector3(3.5, 0.5, z), scene);
-      lR.diffuse = MAGENTA;
+      lR.diffuse = theme.rightHand;
       lR.intensity = 0.5;
       lR.range = 4;
     }
@@ -99,11 +98,11 @@ function setupPillars(scene: Scene): StandardMaterial[] {
   return mats;
 }
 
-export function createEnvironment(scene: Scene): Environment {
+export function createEnvironment(scene: Scene, theme: Theme): Environment {
   setupAtmosphere(scene);
   const glow = setupLighting(scene);
-  setupTrack(scene);
-  const pillarMats = setupPillars(scene);
+  setupTrack(scene, theme);
+  const pillarMats = setupPillars(scene, theme);
 
   function onBeat(): void {
     scene.fogDensity = FOG_BASE * 1.8;
