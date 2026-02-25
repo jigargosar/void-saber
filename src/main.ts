@@ -11,7 +11,8 @@ import { PointLight } from '@babylonjs/core/Lights/pointLight';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { GlowLayer } from '@babylonjs/core/Layers/glowLayer';
-import { WebXRDefaultExperience } from '@babylonjs/core/XR/webXRDefaultExperience';
+import { WebXRExperienceHelper } from '@babylonjs/core/XR/webXRExperienceHelper';
+import { WebXREnterExitUI } from '@babylonjs/core/XR/webXREnterExitUI';
 
 import '@babylonjs/core/Helpers/sceneHelpers';
 import '@babylonjs/loaders/glTF';
@@ -89,7 +90,7 @@ for (let i = 0; i < 14; i++) {
   mR.disableLighting = true;
   pR.material = mR;
 
-  if (i % 3 === 0) {
+  if (i < 2) {
     const lL = new PointLight(`lL${i}`, new Vector3(-3.5, 0.5, z), scene);
     lL.diffuse = CYAN;
     lL.intensity = 0.5;
@@ -103,9 +104,10 @@ for (let i = 0; i < 14; i++) {
 }
 
 // --- WebXR ---
-WebXRDefaultExperience.CreateAsync(scene, {
-  floorMeshes: [track],
-}).then(() => console.log('WebXR ready'));
+WebXRExperienceHelper.CreateAsync(scene).then(async (xrHelper) => {
+  await WebXREnterExitUI.CreateAsync(scene, xrHelper, { sessionMode: 'immersive-vr' });
+  console.log('WebXR ready');
+});
 
 // --- Render & Resize ---
 engine.runRenderLoop(() => scene.render());
