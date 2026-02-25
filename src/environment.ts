@@ -39,7 +39,7 @@ function setupLighting(scene: Scene): GlowLayer {
   return glow;
 }
 
-function setupTrack(scene: Scene, theme: Theme): void {
+function setupTrack(scene: Scene, _theme: Theme): void {
   const track = MeshBuilder.CreateGround('track', { width: 4, height: TRACK_HALF * 2 }, scene);
   track.position.z = 0;
   const trackMat = new StandardMaterial('trackMat', scene);
