@@ -8,11 +8,14 @@ import { Color3 } from '@babylonjs/core/Maths/math';
 import type { Observer } from '@babylonjs/core/Misc/observable';
 
 const SAMPLE_COUNT = 60;
-const FLOATS_PER_SAMPLE = 6; // 2 vertices (base + tip) × 3 components
-const EMIT_THRESHOLD = 0.01; // world units — emit when tip moves this far
-const MAX_AGE = 15;          // frames until sample fully fades out
-const SPAWN_ALPHA_TIP = 0.4;   // tip spawns brighter
-const SPAWN_ALPHA_BASE = 0.05; // base barely visible
+const FLOATS_PER_SAMPLE = 6;
+const EMIT_THRESHOLD = 0.01;
+const MAX_AGE = 15;
+const SPAWN_ALPHA_TIP = 0.4;
+const SPAWN_ALPHA_BASE = 0.05;
+const ACCEL_SENSITIVITY = 300;
+const FADE_RATE_MIN = 0.5;
+const FADE_RATE_MAX = 5.0;
 
 export interface Trail {
   start(): void;
@@ -29,9 +32,15 @@ export function createTrail(
   const vertexCount = SAMPLE_COUNT * 2;
   const positions = new Float32Array(vertexCount * 3);
   const colors = new Float32Array(vertexCount * 4);
-  const ages = new Float32Array(SAMPLE_COUNT).fill(-1); // -1 = inactive
+  const ages = new Float32Array(SAMPLE_COUNT).fill(-1);
 
-  // Quad-strip indices
+  // RGB always white — set once, only alpha changes per frame
+  for (let i = 0; i < vertexCount; i++) {
+    colors[i * 4] = 1;
+    colors[i * 4 + 1] = 1;
+    colors[i * 4 + 2] = 1;
+  }
+
   const indices: number[] = [];
   for (let i = 0; i < SAMPLE_COUNT - 1; i++) {
     const b0 = i * 2;
@@ -59,7 +68,7 @@ export function createTrail(
   mesh.setEnabled(false);
 
   let observer: Observer<Scene> | null = null;
-  let prevSpeed = 0; // last frame's tip movement distance
+  let prevSpeed = 0;
   const LIVE = SAMPLE_COUNT - 1;
   const LIVE_OFFSET = LIVE * FLOATS_PER_SAMPLE;
 
@@ -67,7 +76,6 @@ export function createTrail(
     const bp = bladeBase.getAbsolutePosition();
     const tp = bladeTip.getAbsolutePosition();
 
-    // All samples collapsed at blade, all inactive
     for (let i = 0; i < SAMPLE_COUNT; i++) {
       const offset = i * FLOATS_PER_SAMPLE;
       positions[offset]     = bp.x;
@@ -77,9 +85,11 @@ export function createTrail(
       positions[offset + 4] = tp.y;
       positions[offset + 5] = tp.z;
       ages[i] = -1;
+      colors[i * 2 * 4 + 3] = 0;
+      colors[(i * 2 + 1) * 4 + 3] = 0;
     }
-    ages[LIVE] = 0; // live sample tracks blade
-    colors.fill(0);
+    ages[LIVE] = 0;
+    prevSpeed = 0;
 
     mesh.updateVerticesData(VertexBuffer.PositionKind, positions);
     mesh.updateVerticesData(VertexBuffer.ColorKind, colors);
@@ -89,20 +99,17 @@ export function createTrail(
       const bp = bladeBase.getAbsolutePosition();
       const tp = bladeTip.getAbsolutePosition();
 
-      // Distance from live sample's last tip position to current tip
       const dx = tp.x - positions[LIVE_OFFSET + 3];
       const dy = tp.y - positions[LIVE_OFFSET + 4];
       const dz = tp.z - positions[LIVE_OFFSET + 5];
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-      // Emit one sample per frame at actual controller position (preserves arc)
       if (dist > EMIT_THRESHOLD) {
         positions.copyWithin(0, FLOATS_PER_SAMPLE);
         ages.copyWithin(0, 1);
         ages[LIVE] = 0;
       }
 
-      // Live sample always tracks the blade
       positions[LIVE_OFFSET]     = bp.x;
       positions[LIVE_OFFSET + 1] = bp.y;
       positions[LIVE_OFFSET + 2] = bp.z;
@@ -110,36 +117,28 @@ export function createTrail(
       positions[LIVE_OFFSET + 4] = tp.y;
       positions[LIVE_OFFSET + 5] = tp.z;
 
-      // Acceleration-driven fade rate
-      // accelerating → fade faster (trail thin/sharp)
-      // decelerating → fade slower (trail lingers/blooms)
       const accel = dist - prevSpeed;
-      const fadeRate = Math.max(0.5, Math.min(5.0, 1 + accel * 300));
+      const fadeRate = Math.max(FADE_RATE_MIN, Math.min(FADE_RATE_MAX, 1 + accel * ACCEL_SENSITIVITY));
       prevSpeed = dist;
 
-      // Age all released samples (not the live one at the end)
+      // Age and compute alpha in one pass (skip live sample at end)
       for (let i = 0; i < LIVE; i++) {
-        if (ages[i] >= 0) ages[i] += fadeRate;
-      }
-
-      // Compute vertex colors: both fade linearly, base starts dimmer
-      for (let i = 0; i < SAMPLE_COUNT; i++) {
         let tipAlpha = 0;
         let baseAlpha = 0;
-        if (ages[i] > 0) {
+        if (ages[i] >= 0) {
+          ages[i] += fadeRate;
           const t = ages[i] / MAX_AGE;
           if (t < 1) {
             tipAlpha = SPAWN_ALPHA_TIP * (1 - t);
             baseAlpha = SPAWN_ALPHA_BASE * (1 - t);
           }
         }
-
-        const bi = i * 2 * 4;
-        colors[bi] = 1; colors[bi + 1] = 1; colors[bi + 2] = 1; colors[bi + 3] = baseAlpha;
-
-        const ti = (i * 2 + 1) * 4;
-        colors[ti] = 1; colors[ti + 1] = 1; colors[ti + 2] = 1; colors[ti + 3] = tipAlpha;
+        colors[i * 2 * 4 + 3] = baseAlpha;
+        colors[(i * 2 + 1) * 4 + 3] = tipAlpha;
       }
+      // Live sample: always transparent
+      colors[LIVE * 2 * 4 + 3] = 0;
+      colors[(LIVE * 2 + 1) * 4 + 3] = 0;
 
       mesh.updateVerticesData(VertexBuffer.PositionKind, positions);
       mesh.updateVerticesData(VertexBuffer.ColorKind, colors);
