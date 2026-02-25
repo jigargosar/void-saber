@@ -12,7 +12,7 @@ const FLOATS_PER_SAMPLE = 6; // 2 vertices (base + tip) × 3 components
 const EMIT_THRESHOLD = 0.01; // world units — emit when tip moves this far
 const MAX_AGE = 15;          // frames until sample fully fades out
 const SPAWN_ALPHA_TIP = 0.4;   // tip spawns brighter
-const SPAWN_ALPHA_BASE = 0.0;  // base fully transparent
+const SPAWN_ALPHA_BASE = 0.05; // base barely visible
 
 export interface Trail {
   start(): void;

@@ -35,6 +35,18 @@ function setupLighting(scene: Scene): GlowLayer {
 
   const glow = new GlowLayer('glow', scene, { mainTextureSamples: 4, blurKernelSize: 64 });
   glow.intensity = 1.08;
+  glow.customEmissiveColorSelector = (mesh, _subMesh, _material, result) => {
+    if (mesh.name.endsWith('Trail')) {
+      result.set(0, 0, 0, 0);
+    } else {
+      const mat = mesh.material as { emissiveColor?: { r: number; g: number; b: number } } | null;
+      if (mat?.emissiveColor) {
+        result.set(mat.emissiveColor.r, mat.emissiveColor.g, mat.emissiveColor.b, 1);
+      } else {
+        result.set(0, 0, 0, 0);
+      }
+    }
+  };
 
   return glow;
 }
