@@ -6,8 +6,8 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Color3 } from '@babylonjs/core/Maths/math';
 import { Theme, Hand, handColor } from './theme';
 
-const HANDLE_COLOR    = new Color3(0.1, 0.1, 0.12);
-const HANDLE_SPECULAR = new Color3(0.4, 0.4, 0.4);
+const darkSteel  = new Color3(0.35, 0.35, 0.4);
+const lightSteel = new Color3(0.4, 0.4, 0.4);
 
 const BLADE_HEIGHT  = 1.0;
 const BLADE_RADIUS  = 0.02;
@@ -23,8 +23,8 @@ function buildSaber(name: string, bladeColor: Color3, scene: Scene): TransformNo
   root.rotation.x = Math.PI / 2;
 
   const handleMat = new StandardMaterial(`${name}HandleMat`, scene);
-  handleMat.diffuseColor = HANDLE_COLOR;
-  handleMat.specularColor = HANDLE_SPECULAR;
+  handleMat.diffuseColor = darkSteel;
+  handleMat.specularColor = lightSteel;
 
   const handle = MeshBuilder.CreateCylinder(`${name}Handle`, {
     height: HANDLE_HEIGHT,
