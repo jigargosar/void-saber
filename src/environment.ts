@@ -99,7 +99,7 @@ function setupPillars(scene: Scene, theme: Theme): StandardMaterial[] {
     mL.emissiveColor = theme.leftHand;
     mL.disableLighting = true;
     const pL = MeshBuilder.CreateBox(`pillarL${i}`, { width: 0.12, height: 8, depth: 0.12 }, scene);
-    pL.position.set(-PILLAR_X, 4, z);
+    pL.position.set(-PILLAR_X, 2, z);
     pL.material = mL;
     mats.push(mL);
 
@@ -107,7 +107,7 @@ function setupPillars(scene: Scene, theme: Theme): StandardMaterial[] {
     mR.emissiveColor = theme.rightHand;
     mR.disableLighting = true;
     const pR = MeshBuilder.CreateBox(`pillarR${i}`, { width: 0.12, height: 8, depth: 0.12 }, scene);
-    pR.position.set(PILLAR_X, 4, z);
+    pR.position.set(PILLAR_X, 2, z);
     pR.material = mR;
     mats.push(mR);
 
