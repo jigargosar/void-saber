@@ -3,9 +3,11 @@ import { WebXRInput } from '@babylonjs/core/XR/webXRInput';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
-import { Color3 } from '@babylonjs/core/Maths/math';
+import { Color3, Vector3 } from '@babylonjs/core/Maths/math';
+import type { Observer } from '@babylonjs/core/Misc/observable';
 import { Theme, Hand, handColor } from './theme';
 import { createTrail } from './trail';
+import { segmentDistance } from './collision';
 
 const darkSteel  = new Color3(0.35, 0.35, 0.4);
 const lightSteel = new Color3(0.4, 0.4, 0.4);
@@ -14,8 +16,10 @@ const BLADE_HEIGHT  = 1.0;
 const BLADE_RADIUS  = 0.02;
 const HANDLE_HEIGHT = 0.2;
 const HANDLE_RADIUS = 0.03;
+const INTERSECT_DIST = BLADE_RADIUS * 2; // blades touching
 
 export interface Sabers {
+  onIntersect: ((point: Vector3) => void) | null;
   dispose(): void;
 }
 
@@ -45,8 +49,14 @@ function createBlade(name: string, color: Color3, root: TransformNode, scene: Sc
   mesh.parent = root;
 }
 
+interface BladeSegment {
+  base: TransformNode;
+  tip: TransformNode;
+}
+
 interface SaberParts {
   root: TransformNode;
+  blade: BladeSegment;
   startTrail(): void;
 }
 
@@ -70,10 +80,24 @@ function buildSaber(name: string, color: Color3, scene: Scene): SaberParts {
     trail.start();
   }
 
-  return { root, startTrail };
+  return { root, blade: { base: bladeBase, tip: bladeTip }, startTrail };
 }
 
 export function createSabers(scene: Scene, input: WebXRInput, theme: Theme): Sabers {
+  const blades: BladeSegment[] = [];
+  let intersectObserver: Observer<Scene> | null = null;
+
+  const sabers: Sabers = {
+    onIntersect: null,
+    dispose() {
+      input.onControllerAddedObservable.remove(onAdded);
+      if (intersectObserver) {
+        scene.onBeforeRenderObservable.remove(intersectObserver);
+        intersectObserver = null;
+      }
+    },
+  };
+
   const onAdded = input.onControllerAddedObservable.add((source) => {
     const handedness = source.inputSource.handedness;
     if (handedness === 'none') return;
@@ -82,7 +106,8 @@ export function createSabers(scene: Scene, input: WebXRInput, theme: Theme): Sab
     const color = handColor(theme, hand);
     const name  = `saber_${hand}`;
 
-    const { root, startTrail } = buildSaber(name, color, scene);
+    const { root, blade, startTrail } = buildSaber(name, color, scene);
+    blades.push(blade);
 
     source.onMotionControllerInitObservable.addOnce(() => {
       if (source.grip) {
@@ -90,11 +115,22 @@ export function createSabers(scene: Scene, input: WebXRInput, theme: Theme): Sab
         startTrail();
       }
     });
+
+    // Start intersection check once both blades exist
+    if (blades.length === 2 && !intersectObserver) {
+      intersectObserver = scene.onBeforeRenderObservable.add(() => {
+        const a = blades[0];
+        const b = blades[1];
+        const { dist, point } = segmentDistance(
+          a.base.getAbsolutePosition(), a.tip.getAbsolutePosition(),
+          b.base.getAbsolutePosition(), b.tip.getAbsolutePosition(),
+        );
+        if (dist < INTERSECT_DIST && sabers.onIntersect) {
+          sabers.onIntersect(point);
+        }
+      });
+    }
   });
 
-  function dispose(): void {
-    input.onControllerAddedObservable.remove(onAdded);
-  }
-
-  return { dispose };
+  return sabers;
 }
