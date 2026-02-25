@@ -1,17 +1,28 @@
-# Void Saber — Build Steps
+# Void Saber — Build Guide
 
-Beat Saber clone. Babylon.js + WebXR. Quest browser + desktop.
+Beat Saber clone. Babylon.js + WebXR.
 
-1. Corridor — dark void, neon edge lines, glowing pillars, GlowLayer, fog
-2. WebXR session — enter VR, corridor looks correct in headset
+## Decisions
+
+- Target: Quest 2 browser (immersive-vr). Dev/testing: Chrome desktop with WebXR emulation extension.
+- Audio: Web Audio API only — no audio files. Synthesized drum patterns (kick/snare/hat) with minor variation per song.
+- Beatmaps: Fixed JSON patterns per song — not procedural, not file-loaded.
+- Songs: 3 songs, each a fixed beatmap + fixed BPM. Different tempos for variety.
+- Menu/results: Full state machine — menu → countdown → playing → paused → results.
+- Scope: All 23 steps. No shortcuts.
+
+## Build Steps
+
+1. Corridor — dark void, neon edge lines, glowing pillars, GlowLayer, fog — DONE
+2. WebXR session — enter VR, corridor looks correct in headset — DONE
 3. Controller tracking — see controller positions in VR
 4. Sabers — blade + handle + glow, attached to controllers, cyan left magenta right
 5. Saber trails — ribbon behind blade tip, fades along tail
 6. Saber-saber sparks — detect intersection, spawn particles, haptic pulse
-7. Audio engine — Web Audio API, synthesized kick/snare/hat/bass
-8. Songs — 3-5 procedural tracks, different tempos
+7. Audio engine — Web Audio API, synthesized kick/snare/hat/bass, no files
+8. Songs — 3 fixed-BPM tracks with minor drum pattern variation
 9. Beat clock — timing from AudioContext.currentTime, drives everything
-10. Beatmaps — JSON, each note has time/lane/row/color/direction
+10. Beatmaps — hardcoded JSON per song, each note: time/lane/row/color/direction
 11. Cube spawning — pooled rounded cubes, travel toward player, arrive on beat
 12. Directional arrows — arrow on cube face showing required swing direction
 13. Collision — saber vs cube, check swing direction matches
