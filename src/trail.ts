@@ -114,7 +114,7 @@ export function createTrail(
       // accelerating → fade faster (trail thin/sharp)
       // decelerating → fade slower (trail lingers/blooms)
       const accel = dist - prevSpeed;
-      const fadeRate = Math.max(0.3, Math.min(3.0, 1 + accel * 80));
+      const fadeRate = Math.max(0.5, Math.min(5.0, 1 + accel * 300));
       prevSpeed = dist;
 
       // Age all released samples (not the live one at the end)
