@@ -48,11 +48,11 @@ function setupTrack(scene: Scene, theme: Theme): void {
   track.material = trackMat;
 
   const leftMat = new StandardMaterial('edgeLeft', scene);
-  leftMat.emissiveColor = theme.leftHand;
+  leftMat.emissiveColor = Color3.White();
   leftMat.disableLighting = true;
 
   const rightMat = new StandardMaterial('edgeRight', scene);
-  rightMat.emissiveColor = theme.rightHand;
+  rightMat.emissiveColor = Color3.White();
   rightMat.disableLighting = true;
 
   const edgeL = MeshBuilder.CreateBox('edgeL', { width: 0.03, height: 0.02, depth: TRACK_HALF * 2 }, scene);
