@@ -34,7 +34,7 @@ function setupLighting(scene: Scene): GlowLayer {
   hemi.intensity = 0.08;
 
   const glow = new GlowLayer('glow', scene, { mainTextureSamples: 4, blurKernelSize: 64 });
-  glow.intensity = 1.2;
+  glow.intensity = 1.08;
 
   return glow;
 }
@@ -96,17 +96,17 @@ function setupPillars(scene: Scene, theme: Theme): StandardMaterial[] {
     const z = pillarStart - i * PILLAR_GAP;
 
     const mL = new StandardMaterial(`pillarMatL${i}`, scene);
-    mL.emissiveColor = theme.leftHand;
+    mL.emissiveColor = new Color3(0.4, 0, 0.6);
     mL.disableLighting = true;
-    const pL = MeshBuilder.CreateBox(`pillarL${i}`, { width: 0.12, height: 8, depth: 0.12 }, scene);
+    const pL = MeshBuilder.CreateCylinder(`pillarL${i}`, { height: 8, diameter: 0.12, tessellation: 12 }, scene);
     pL.position.set(PILLAR_X, 2, z);
     pL.material = mL;
     mats.push(mL);
 
     const mR = new StandardMaterial(`pillarMatR${i}`, scene);
-    mR.emissiveColor = theme.rightHand;
+    mR.emissiveColor = new Color3(0.4, 0, 0.6);
     mR.disableLighting = true;
-    const pR = MeshBuilder.CreateBox(`pillarR${i}`, { width: 0.12, height: 8, depth: 0.12 }, scene);
+    const pR = MeshBuilder.CreateCylinder(`pillarR${i}`, { height: 8, diameter: 0.12, tessellation: 12 }, scene);
     pR.position.set(-PILLAR_X, 2, z);
     pR.material = mR;
     mats.push(mR);
