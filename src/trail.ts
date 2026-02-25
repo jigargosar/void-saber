@@ -11,7 +11,8 @@ const SAMPLE_COUNT = 60;
 const FLOATS_PER_SAMPLE = 6; // 2 vertices (base + tip) × 3 components
 const EMIT_THRESHOLD = 0.01; // world units — emit when tip moves this far
 const MAX_AGE = 15;          // frames until sample fully fades out
-const SPAWN_ALPHA = 0.4;     // born semi-transparent, never opaque
+const SPAWN_ALPHA_TIP = 0.4;   // tip spawns brighter
+const SPAWN_ALPHA_BASE = 0.0;  // base fully transparent
 
 export interface Trail {
   start(): void;
@@ -88,17 +89,35 @@ export function createTrail(
       const tp = bladeTip.getAbsolutePosition();
 
       // Distance from live sample's last position to current blade tip
-      const dx = tp.x - positions[LIVE_OFFSET + 3];
-      const dy = tp.y - positions[LIVE_OFFSET + 4];
-      const dz = tp.z - positions[LIVE_OFFSET + 5];
+      const prevBx = positions[LIVE_OFFSET];
+      const prevBy = positions[LIVE_OFFSET + 1];
+      const prevBz = positions[LIVE_OFFSET + 2];
+      const prevTx = positions[LIVE_OFFSET + 3];
+      const prevTy = positions[LIVE_OFFSET + 4];
+      const prevTz = positions[LIVE_OFFSET + 5];
+      const dx = tp.x - prevTx;
+      const dy = tp.y - prevTy;
+      const dz = tp.z - prevTz;
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
+      // Emit multiple interpolated samples to keep spacing uniform
       if (dist > EMIT_THRESHOLD) {
-        // Shift buffer left: oldest sample falls off, live becomes released
-        positions.copyWithin(0, FLOATS_PER_SAMPLE);
-        ages.copyWithin(0, 1);
-        // Old live (now at LIVE-1) keeps age 0 — aging below will increment it
-        ages[LIVE] = 0; // new live sample
+        const count = Math.min(Math.floor(dist / EMIT_THRESHOLD), LIVE);
+        for (let s = 1; s <= count; s++) {
+          const frac = s / count;
+          positions.copyWithin(0, FLOATS_PER_SAMPLE);
+          ages.copyWithin(0, 1);
+          ages[LIVE] = 0;
+
+          // Lerp between previous live position and current blade
+          const offset = LIVE_OFFSET;
+          positions[offset]     = prevBx + (bp.x - prevBx) * frac;
+          positions[offset + 1] = prevBy + (bp.y - prevBy) * frac;
+          positions[offset + 2] = prevBz + (bp.z - prevBz) * frac;
+          positions[offset + 3] = prevTx + (tp.x - prevTx) * frac;
+          positions[offset + 4] = prevTy + (tp.y - prevTy) * frac;
+          positions[offset + 5] = prevTz + (tp.z - prevTz) * frac;
+        }
       }
 
       // Live sample always tracks the blade
@@ -114,15 +133,16 @@ export function createTrail(
         if (ages[i] >= 0) ages[i]++;
       }
 
-      // Compute vertex colors: tip fades normally, base fades faster
+      // Compute vertex colors: both fade linearly, base starts dimmer
       for (let i = 0; i < SAMPLE_COUNT; i++) {
         let tipAlpha = 0;
         let baseAlpha = 0;
         if (ages[i] > 0) {
           const t = ages[i] / MAX_AGE;
-          if (t < 1) tipAlpha = SPAWN_ALPHA * (1 - t);
-          const tBase = ages[i] / (MAX_AGE * 0.4); // base fades ~2.5x faster
-          if (tBase < 1) baseAlpha = SPAWN_ALPHA * (1 - tBase);
+          if (t < 1) {
+            tipAlpha = SPAWN_ALPHA_TIP * (1 - t);
+            baseAlpha = SPAWN_ALPHA_BASE * (1 - t);
+          }
         }
 
         const bi = i * 2 * 4;
