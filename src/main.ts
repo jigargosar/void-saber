@@ -6,13 +6,13 @@ import { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math';
 import { FreeCamera } from '@babylonjs/core/Cameras/freeCamera';
-import { WebXRExperienceHelper } from '@babylonjs/core/XR/webXRExperienceHelper';
-import { WebXREnterExitUI } from '@babylonjs/core/XR/webXREnterExitUI';
+import { WebXRDefaultExperience } from '@babylonjs/core/XR/webXRDefaultExperience';
 
 import '@babylonjs/core/Helpers/sceneHelpers';
 import '@babylonjs/loaders/glTF';
 
 import { createEnvironment } from './environment';
+import { createControllers } from './controllers';
 
 function createEngine(): Engine {
   const canvas = document.getElementById('canvas');
@@ -29,8 +29,15 @@ function createScene(engine: Engine): Scene {
 }
 
 async function setupWebXR(scene: Scene): Promise<void> {
-  const xrHelper = await WebXRExperienceHelper.CreateAsync(scene);
-  await WebXREnterExitUI.CreateAsync(scene, xrHelper, { sessionMode: 'immersive-vr' });
+  const xr = await WebXRDefaultExperience.CreateAsync(scene, {
+    uiOptions: { sessionMode: 'immersive-vr' },
+    disableTeleportation: true,
+    disablePointerSelection: true,
+    disableNearInteraction: true,
+    disableHandTracking: true,
+    inputOptions: { doNotLoadControllerMeshes: true },
+  });
+  createControllers(scene, xr.input);
   console.log('WebXR ready');
 }
 
