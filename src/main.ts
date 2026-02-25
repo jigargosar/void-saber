@@ -103,7 +103,8 @@ async function setupWebXR(scene: Scene): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+  const canvas = document.getElementById('canvas');
+  if (!(canvas instanceof HTMLCanvasElement)) throw new Error('Canvas element not found');
   const engine = new Engine(canvas, true);
   const scene  = createScene(engine, canvas);
 
