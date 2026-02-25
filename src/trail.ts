@@ -114,19 +114,22 @@ export function createTrail(
         if (ages[i] >= 0) ages[i]++;
       }
 
-      // Compute vertex colors: spawn semi-transparent, fade to fully transparent
+      // Compute vertex colors: tip fades normally, base fades faster
       for (let i = 0; i < SAMPLE_COUNT; i++) {
-        let alpha = 0;
+        let tipAlpha = 0;
+        let baseAlpha = 0;
         if (ages[i] > 0) {
-          const t = ages[i] / MAX_AGE; // 0→just released, 1→fully faded
-          if (t < 1) alpha = SPAWN_ALPHA * (1 - t);
+          const t = ages[i] / MAX_AGE;
+          if (t < 1) tipAlpha = SPAWN_ALPHA * (1 - t);
+          const tBase = ages[i] / (MAX_AGE * 0.4); // base fades ~2.5x faster
+          if (tBase < 1) baseAlpha = SPAWN_ALPHA * (1 - tBase);
         }
 
         const bi = i * 2 * 4;
-        colors[bi] = 1; colors[bi + 1] = 1; colors[bi + 2] = 1; colors[bi + 3] = alpha;
+        colors[bi] = 1; colors[bi + 1] = 1; colors[bi + 2] = 1; colors[bi + 3] = baseAlpha;
 
         const ti = (i * 2 + 1) * 4;
-        colors[ti] = 1; colors[ti + 1] = 1; colors[ti + 2] = 1; colors[ti + 3] = alpha;
+        colors[ti] = 1; colors[ti + 1] = 1; colors[ti + 2] = 1; colors[ti + 3] = tipAlpha;
       }
 
       mesh.updateVerticesData(VertexBuffer.PositionKind, positions);
