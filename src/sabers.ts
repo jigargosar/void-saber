@@ -5,6 +5,7 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Color3 } from '@babylonjs/core/Maths/math';
 import { Theme, Hand, handColor } from './theme';
+import { createTrail } from './trail';
 
 const darkSteel  = new Color3(0.35, 0.35, 0.4);
 const lightSteel = new Color3(0.4, 0.4, 0.4);
@@ -44,12 +45,32 @@ function createBlade(name: string, color: Color3, root: TransformNode, scene: Sc
   mesh.parent = root;
 }
 
-function buildSaber(name: string, color: Color3, scene: Scene): TransformNode {
+interface SaberParts {
+  root: TransformNode;
+  startTrail(): void;
+}
+
+function buildSaber(name: string, color: Color3, scene: Scene): SaberParts {
   const root = new TransformNode(name, scene);
   root.rotation.x = Math.PI / 2;
   createHandle(name, root, scene);
   createBlade(name, color, root, scene);
-  return root;
+
+  const bladeBase = new TransformNode(`${name}BladeBase`, scene);
+  bladeBase.position.y = HANDLE_HEIGHT;
+  bladeBase.parent = root;
+
+  const bladeTip = new TransformNode(`${name}BladeTip`, scene);
+  bladeTip.position.y = HANDLE_HEIGHT + BLADE_HEIGHT;
+  bladeTip.parent = root;
+
+  const trail = createTrail(name, bladeBase, bladeTip, color, scene);
+
+  function startTrail(): void {
+    trail.start();
+  }
+
+  return { root, startTrail };
 }
 
 export function createSabers(scene: Scene, input: WebXRInput, theme: Theme): Sabers {
@@ -61,10 +82,13 @@ export function createSabers(scene: Scene, input: WebXRInput, theme: Theme): Sab
     const color = handColor(theme, hand);
     const name  = `saber_${hand}`;
 
-    const saber = buildSaber(name, color, scene);
+    const { root, startTrail } = buildSaber(name, color, scene);
 
     source.onMotionControllerInitObservable.addOnce(() => {
-      if (source.grip) saber.parent = source.grip;
+      if (source.grip) {
+        root.parent = source.grip;
+        startTrail();
+      }
     });
   });
 
