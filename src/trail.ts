@@ -59,6 +59,7 @@ export function createTrail(
   mesh.setEnabled(false);
 
   let observer: Observer<Scene> | null = null;
+  let prevSpeed = 0; // last frame's tip movement distance
   const LIVE = SAMPLE_COUNT - 1;
   const LIVE_OFFSET = LIVE * FLOATS_PER_SAMPLE;
 
@@ -128,9 +129,16 @@ export function createTrail(
       positions[LIVE_OFFSET + 4] = tp.y;
       positions[LIVE_OFFSET + 5] = tp.z;
 
+      // Acceleration-driven fade rate
+      // accelerating → fade faster (trail thin/sharp)
+      // decelerating → fade slower (trail lingers/blooms)
+      const accel = dist - prevSpeed;
+      const fadeRate = Math.max(0.3, Math.min(3.0, 1 + accel * 80));
+      prevSpeed = dist;
+
       // Age all released samples (not the live one at the end)
       for (let i = 0; i < LIVE; i++) {
-        if (ages[i] >= 0) ages[i]++;
+        if (ages[i] >= 0) ages[i] += fadeRate;
       }
 
       // Compute vertex colors: both fade linearly, base starts dimmer
