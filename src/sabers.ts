@@ -18,36 +18,37 @@ export interface Sabers {
   dispose(): void;
 }
 
-function buildSaber(name: string, bladeColor: Color3, scene: Scene): TransformNode {
+function createHandle(name: string, root: TransformNode, scene: Scene): void {
+  const mat = new StandardMaterial(`${name}HandleMat`, scene);
+  mat.diffuseColor = darkSteel;
+  mat.specularColor = lightSteel;
+
+  const mesh = MeshBuilder.CreateCylinder(`${name}Handle`, {
+    height: HANDLE_HEIGHT, diameter: HANDLE_RADIUS * 2, tessellation: 12,
+  }, scene);
+  mesh.material = mat;
+  mesh.position.y = HANDLE_HEIGHT / 2;
+  mesh.parent = root;
+}
+
+function createBlade(name: string, color: Color3, root: TransformNode, scene: Scene): void {
+  const mat = new StandardMaterial(`${name}BladeMat`, scene);
+  mat.emissiveColor = color;
+  mat.disableLighting = true;
+
+  const mesh = MeshBuilder.CreateCylinder(`${name}Blade`, {
+    height: BLADE_HEIGHT, diameter: BLADE_RADIUS * 2, tessellation: 12,
+  }, scene);
+  mesh.material = mat;
+  mesh.position.y = HANDLE_HEIGHT + BLADE_HEIGHT / 2;
+  mesh.parent = root;
+}
+
+function buildSaber(name: string, color: Color3, scene: Scene): TransformNode {
   const root = new TransformNode(name, scene);
   root.rotation.x = Math.PI / 2;
-
-  const handleMat = new StandardMaterial(`${name}HandleMat`, scene);
-  handleMat.diffuseColor = darkSteel;
-  handleMat.specularColor = lightSteel;
-
-  const handle = MeshBuilder.CreateCylinder(`${name}Handle`, {
-    height: HANDLE_HEIGHT,
-    diameter: HANDLE_RADIUS * 2,
-    tessellation: 12,
-  }, scene);
-  handle.material = handleMat;
-  handle.position.y = HANDLE_HEIGHT / 2;
-  handle.parent = root;
-
-  const bladeMat = new StandardMaterial(`${name}BladeMat`, scene);
-  bladeMat.emissiveColor = bladeColor;
-  bladeMat.disableLighting = true;
-
-  const blade = MeshBuilder.CreateCylinder(`${name}Blade`, {
-    height: BLADE_HEIGHT,
-    diameter: BLADE_RADIUS * 2,
-    tessellation: 12,
-  }, scene);
-  blade.material = bladeMat;
-  blade.position.y = HANDLE_HEIGHT + BLADE_HEIGHT / 2;
-  blade.parent = root;
-
+  createHandle(name, root, scene);
+  createBlade(name, color, root, scene);
   return root;
 }
 
