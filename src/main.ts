@@ -13,7 +13,7 @@ import '@babylonjs/loaders/glTF';
 
 import { Theme } from './theme';
 import { createEnvironment } from './environment';
-import { createSaberManager } from './saberManager';
+import { createSaberManager } from './saber/saberManager';
 
 const cyan    = new Color3(0, 0.9, 0.95);
 const magenta = new Color3(0.95, 0, 0.7);

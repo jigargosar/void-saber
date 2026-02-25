@@ -1,10 +1,10 @@
 import { Scene } from '@babylonjs/core/scene';
 import { WebXRInput } from '@babylonjs/core/XR/webXRInput';
 import { Vector3 } from '@babylonjs/core/Maths/math';
-import { Theme, isHand, handColor } from './theme';
+import { Theme, isHand, handColor } from '../theme';
 import { buildSaber, BLADE_RADIUS, BladeSegment } from './saberBuilder';
 import { createTrail } from './trail';
-import { segmentDistance } from './collision';
+import { segmentDistance } from '../collision';
 
 const INTERSECT_DIST = BLADE_RADIUS * 2;
 
