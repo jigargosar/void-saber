@@ -297,19 +297,33 @@ processing. Multiple processors on the same queue lose events. Workaround:
 one processor per event type dispatching to all handlers. See queueProcessor
 section above.
 
-# Unverified — Requires Prototype
+**MobX observable arrays wrap items in proxies by default.** Pushing a plain
+object into `observable([])` wraps it — `indexOf(originalObj)` returns -1.
+This breaks the miniplex → MobX bridge since miniplex events pass the original
+object reference. Fix: use `observable.array([], { deep: false })` which
+observes array mutations (push/splice) but preserves object references.
 
-These involve library integration (not individual behavior) and need testing
-with actual Babylon rendering:
+# Verified — Integration
 
-1. `createTransformer` + Babylon meshes — does onCleanup correctly dispose meshes
-   and materials when entities leave the reactive scope?
-2. `fromResource` + Babylon observables — does auto-subscribe/unsubscribe work
-   with WebXR input observables specifically?
-3. MobX overhead in a 60fps render loop — cost of observable reads in hot paths
-   (trail vertex updates, collision checks every frame)?
-4. Miniplex + createTransformer together — does removing an entity from the world
-   trigger createTransformer cleanup automatically via the reactive chain?
+Integration between libraries confirmed via NullEngine test scripts.
+See [tests/verify-integration.mjs](tests/verify-integration.mjs)
 
-Next step: prototype the saber→grip relationship using miniplex + createTransformer
-+ NullEngine to verify integration behavior.
+1. **createTransformer + Babylon meshes** — onCleanup fires reliably. Removing
+   an entity from an observable array triggers cleanup which disposes meshes and
+   materials via `root.dispose(false, true)`. Verified both single removal and
+   full autorun disposal.
+
+2. **fromResource + Babylon Observable** — bridge works. `sink()` pushes values
+   from Babylon's `Observable.notifyObservers()` into MobX reactivity. Unsubscribe
+   clears Babylon observable listeners when autorun is disposed.
+
+3. **MobX overhead in 60fps loop** — 0.009ms per frame for observable read+write
+   cycle. Budget is 16.67ms. Overhead is negligible (<0.1% of frame budget).
+
+4. **Miniplex + createTransformer via bridge** — full chain works:
+   `world.remove(entity)` → miniplex `onEntityRemoved` → shallow observable
+   array splice → autorun re-runs → createTransformer detects orphan → onCleanup
+   disposes Babylon mesh. Requires `observable.array([], { deep: false })` for
+   correct identity matching.
+
+Next step: migrate saber system to ECS architecture.
