@@ -81,7 +81,7 @@ export function onExit<E>(query: Query<E>, cb: (entity: E) => void): Teardown {
 MobX is the implementation detail, not the API surface. If we ever swap to signals or nanostores, call sites don't change.
 
 ```typescript
-import { observable, autorun } from 'mobx';
+import { observable, reaction } from 'mobx';
 
 export function state<T>(initial: T): { get(): T; set(v: T): void } {
   const box = observable.box(initial, { deep: false });
@@ -92,9 +92,11 @@ export function state<T>(initial: T): { get(): T; set(v: T): void } {
 }
 
 export function reactTo<T>(read: () => T, effect: (value: T) => void): Teardown {
-  return autorun(() => effect(read()));
+  return reaction(read, effect, { fireImmediately: true });
 }
 ```
+
+Uses `reaction` (not `autorun`) — only tracks observables in the `read` function. The `effect` callback is untracked, so any observable reads inside it (e.g., accessing game state to update UI) won't cause spurious re-triggers.
 
 ### createEventQueue
 
@@ -112,10 +114,8 @@ export function createEventQueue<T>(handler: (event: T) => void): EventQueue<T> 
   return {
     push: (event: T) => { queue.push(event); },
     flush: () => {
-      while (queue.length > 0) {
-        const event = queue.shift();
-        if (event !== undefined) handler(event);
-      }
+      for (let i = 0; i < queue.length; i++) handler(queue[i]);
+      queue.length = 0;
     },
     dispose: () => { queue.length = 0; },
   };
@@ -312,14 +312,17 @@ Note: `state` and `reactTo` not imported yet — no current use case. Available 
 Replace the CLAUDE.md-violating `as` cast in `customEmissiveColorSelector`:
 
 ```typescript
+function hasEmissiveColor(mat: unknown): mat is { emissiveColor: Color3 } {
+  return mat != null && typeof mat === 'object' && 'emissiveColor' in mat;
+}
+
 glow.customEmissiveColorSelector = (mesh, _subMesh, _material, result) => {
   if (mesh.name.endsWith('Trail')) {
     result.set(0, 0, 0, 0);
     return;
   }
-  const mat = mesh.material;
-  if (mat && 'emissiveColor' in mat) {
-    const ec = (mat as StandardMaterial).emissiveColor;
+  if (hasEmissiveColor(mesh.material)) {
+    const ec = mesh.material.emissiveColor;
     result.set(ec.r, ec.g, ec.b, 1);
   } else {
     result.set(0, 0, 0, 0);
@@ -327,7 +330,7 @@ glow.customEmissiveColorSelector = (mesh, _subMesh, _material, result) => {
 };
 ```
 
-The `'emissiveColor' in mat` guard narrows safely. The `as StandardMaterial` is after the guard — type-safe narrowing, not an assertion.
+Type guard narrows to `{ emissiveColor: Color3 }` — no `as` needed. TS knows `.r`, `.g`, `.b` exist from the guard's return type.
 
 ## 11. Fix: Capture Teardowns in Bootstrap
 
@@ -368,16 +371,24 @@ Note: `collisionEvents.flush()` called at end of each frame after all systems ha
 Replace `setTimeout` in `onBeat` with a per-frame decay system. The `onBeat` function sets a reactive `beatFlash` state, and a per-frame system decays it:
 
 ```typescript
+interface PillarSnapshot {
+  readonly mat: StandardMaterial;
+  readonly baseColor: Color3;
+}
+
 const beatFlash = state(0);
 
-function createBeatDecaySystem(pillarMats: StandardMaterial[]): System {
+function createBeatDecaySystem(
+  scene: Scene,
+  pillars: readonly PillarSnapshot[],
+): System {
   return () => {
     const flash = beatFlash.get();
     if (flash <= 0) return;
     const t = Math.max(0, flash - 1 / 60 / 0.12); // decay over 120ms
     beatFlash.set(t);
     scene.fogDensity = FOG_BASE * (1 + 0.8 * t);
-    for (const mat of pillarMats) {
+    for (const { mat, baseColor } of pillars) {
       mat.emissiveColor = baseColor.scale(1 + 1.5 * t);
     }
   };
@@ -387,6 +398,8 @@ function onBeat(): void {
   beatFlash.set(1);
 }
 ```
+
+`PillarSnapshot` captures each material alongside its original base color at creation time. The system reads from the snapshot — no undefined reference.
 
 This eliminates `setTimeout` (spooky action at a distance) and brings beat effects into the system pipeline. Uses `state` + per-frame polling — `reactTo` not needed since we're already in the render loop.
 
