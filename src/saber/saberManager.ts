@@ -38,7 +38,7 @@ export function createSaberManager(scene: Scene, input: WebXRInput, theme: Theme
 
     const name  = `saber_${handedness}`;
     const color = handColor(theme, handedness);
-    const saber = buildSaber(name, color, scene);
+    const saber = buildSaber(name, color);
     const trail = createTrail(name, saber.blade.base, saber.blade.tip, color, scene);
 
     blades.push(saber.blade);

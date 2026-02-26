@@ -50,7 +50,7 @@ export function createTrail(
     indices.push(b0, t0, t1, b0, t1, b1);
   }
 
-  const mesh = new Mesh(`${name}Trail`, scene);
+  const mesh = new Mesh(`${name}Trail`);
   const vertexData = new VertexData();
   vertexData.positions = positions;
   vertexData.indices = indices;
@@ -59,7 +59,7 @@ export function createTrail(
   mesh.hasVertexAlpha = true;
   mesh.alwaysSelectAsActiveMesh = true;
 
-  const mat = new StandardMaterial(`${name}TrailMat`, scene);
+  const mat = new StandardMaterial(`${name}TrailMat`);
   mat.emissiveColor = color;
   mat.disableLighting = true;
   mat.backFaceCulling = false;

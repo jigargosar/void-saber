@@ -30,7 +30,7 @@ function setupAtmosphere(scene: Scene): void {
 }
 
 function setupLighting(scene: Scene): GlowLayer {
-  const hemi = new HemisphericLight('hemi', new Vector3(0, 1, 0), scene);
+  const hemi = new HemisphericLight('hemi', new Vector3(0, 1, 0));
   hemi.intensity = 0.08;
 
   const glow = new GlowLayer('glow', scene, { mainTextureSamples: 4, blurKernelSize: 64 });
@@ -51,39 +51,39 @@ function setupLighting(scene: Scene): GlowLayer {
   return glow;
 }
 
-function setupTrack(scene: Scene, _theme: Theme): void {
-  const track = MeshBuilder.CreateGround('track', { width: 4, height: TRACK_HALF * 2 }, scene);
+function setupTrack(_theme: Theme): void {
+  const track = MeshBuilder.CreateGround('track', { width: 4, height: TRACK_HALF * 2 });
   track.position.z = 0;
-  const trackMat = new StandardMaterial('trackMat', scene);
+  const trackMat = new StandardMaterial('trackMat');
   trackMat.diffuseColor = new Color3(0.02, 0.02, 0.03);
   trackMat.specularColor = Color3.Black();
   track.material = trackMat;
 
-  const leftMat = new StandardMaterial('edgeLeft', scene);
+  const leftMat = new StandardMaterial('edgeLeft');
   leftMat.emissiveColor = Color3.White();
   leftMat.disableLighting = true;
 
-  const rightMat = new StandardMaterial('edgeRight', scene);
+  const rightMat = new StandardMaterial('edgeRight');
   rightMat.emissiveColor = Color3.White();
   rightMat.disableLighting = true;
 
-  const edgeL = MeshBuilder.CreateBox('edgeL', { width: 0.03, height: 0.02, depth: TRACK_HALF * 2 }, scene);
+  const edgeL = MeshBuilder.CreateBox('edgeL', { width: 0.03, height: 0.02, depth: TRACK_HALF * 2 });
   edgeL.position.set(-2, 0.01, 0);
   edgeL.material = leftMat;
 
-  const edgeR = MeshBuilder.CreateBox('edgeR', { width: 0.03, height: 0.02, depth: TRACK_HALF * 2 }, scene);
+  const edgeR = MeshBuilder.CreateBox('edgeR', { width: 0.03, height: 0.02, depth: TRACK_HALF * 2 });
   edgeR.position.set(2, 0.01, 0);
   edgeR.material = rightMat;
 }
 
-function setupFloorRibs(scene: Scene, theme: Theme): void {
+function setupFloorRibs(theme: Theme): void {
   const ribStart = Math.floor(RIB_COUNT / 2) * RIB_GAP;
 
-  const leftMat = new StandardMaterial('ribLeft', scene);
+  const leftMat = new StandardMaterial('ribLeft');
   leftMat.emissiveColor = theme.leftHand.scale(0.4);
   leftMat.disableLighting = true;
 
-  const rightMat = new StandardMaterial('ribRight', scene);
+  const rightMat = new StandardMaterial('ribRight');
   rightMat.emissiveColor = theme.rightHand.scale(0.4);
   rightMat.disableLighting = true;
 
@@ -93,43 +93,43 @@ function setupFloorRibs(scene: Scene, theme: Theme): void {
 
     const rib = MeshBuilder.CreateCylinder(`rib${i}`, {
       height: 4, diameter: 0.03, tessellation: 8,
-    }, scene);
+    });
     rib.rotation.z = Math.PI / 2;
     rib.position.set(0, -0.04, z);
     rib.material = mat;
   }
 }
 
-function setupPillars(scene: Scene, theme: Theme): StandardMaterial[] {
+function setupPillars(theme: Theme): StandardMaterial[] {
   const mats: StandardMaterial[] = [];
   const pillarStart = Math.floor(PILLAR_COUNT / 2) * PILLAR_GAP;
 
   for (let i = 0; i < PILLAR_COUNT; i++) {
     const z = pillarStart - i * PILLAR_GAP;
 
-    const mL = new StandardMaterial(`pillarMatL${i}`, scene);
+    const mL = new StandardMaterial(`pillarMatL${i}`);
     mL.emissiveColor = new Color3(0.4, 0, 0.6);
     mL.disableLighting = true;
-    const pL = MeshBuilder.CreateCylinder(`pillarL${i}`, { height: 8, diameter: 0.12, tessellation: 12 }, scene);
+    const pL = MeshBuilder.CreateCylinder(`pillarL${i}`, { height: 8, diameter: 0.12, tessellation: 12 });
     pL.position.set(PILLAR_X, 2, z);
     pL.material = mL;
     mats.push(mL);
 
-    const mR = new StandardMaterial(`pillarMatR${i}`, scene);
+    const mR = new StandardMaterial(`pillarMatR${i}`);
     mR.emissiveColor = new Color3(0.4, 0, 0.6);
     mR.disableLighting = true;
-    const pR = MeshBuilder.CreateCylinder(`pillarR${i}`, { height: 8, diameter: 0.12, tessellation: 12 }, scene);
+    const pR = MeshBuilder.CreateCylinder(`pillarR${i}`, { height: 8, diameter: 0.12, tessellation: 12 });
     pR.position.set(-PILLAR_X, 2, z);
     pR.material = mR;
     mats.push(mR);
 
     if (i < 2) {
-      const lL = new PointLight(`pointL${i}`, new Vector3(-PILLAR_X, 0.5, z), scene);
+      const lL = new PointLight(`pointL${i}`, new Vector3(-PILLAR_X, 0.5, z));
       lL.diffuse = theme.leftHand;
       lL.intensity = 0.5;
       lL.range = 4;
 
-      const lR = new PointLight(`pointR${i}`, new Vector3(PILLAR_X, 0.5, z), scene);
+      const lR = new PointLight(`pointR${i}`, new Vector3(PILLAR_X, 0.5, z));
       lR.diffuse = theme.rightHand;
       lR.intensity = 0.5;
       lR.range = 4;
@@ -142,9 +142,9 @@ function setupPillars(scene: Scene, theme: Theme): StandardMaterial[] {
 export function createEnvironment(scene: Scene, theme: Theme): Environment {
   setupAtmosphere(scene);
   const glow = setupLighting(scene);
-  setupTrack(scene, theme);
-  setupFloorRibs(scene, theme);
-  const pillarMats = setupPillars(scene, theme);
+  setupTrack(theme);
+  setupFloorRibs(theme);
+  const pillarMats = setupPillars(theme);
 
   function onBeat(): void {
     scene.fogDensity = FOG_BASE * 1.8;
