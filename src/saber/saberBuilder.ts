@@ -70,17 +70,9 @@ export function buildSaber(name: string, color: Color3, scene: Scene): Saber {
   const root = new TransformNode(name, scene);
   root.rotation.x = Math.PI / 2;
 
-  const handle = createHandle(name, root, scene);
-  const blade  = createBlade(name, color, root, scene);
+  createHandle(name, root, scene);
+  createBlade(name, color, root, scene);
   const segment = createBladeSegment(name, root, scene);
 
-  function dispose(): void {
-    handle.dispose();
-    blade.dispose();
-    segment.base.dispose();
-    segment.tip.dispose();
-    root.dispose();
-  }
-
-  return { root, blade: segment, dispose };
+  return { root, blade: segment, dispose: () => root.dispose(false, true) };
 }
