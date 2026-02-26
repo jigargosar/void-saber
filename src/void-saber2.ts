@@ -24,7 +24,8 @@ import '@babylonjs/loaders/glTF';
 
 import {
   World, type System, type Teardown,
-  createEventQueue, createPipeline, onRemoved,
+  onEnter, onExit,
+  createEventQueue, createPipeline,
 } from './ecs';
 import { type Hand, type Theme, isHand, handColor } from './theme';
 import { segmentDistance } from './collision';
@@ -69,29 +70,33 @@ const theme: Theme = {
   rightHand: magenta,
 };
 
-// ── Trail State ────────────────────────────────────────────────────
+// ── Component Interfaces ──────────────────────────────────────────
 
-interface TrailState {
-  mesh: Mesh;
-  positions: Float32Array;
-  colors: Float32Array;
-  ages: Float32Array;
+interface BladeSegment {
+  readonly base: TransformNode;
+  readonly tip: TransformNode;
+}
+
+interface SaberVisual {
+  readonly root: TransformNode;
+  readonly blade: BladeSegment;
+}
+
+interface TrailBuffers {
+  readonly positions: Float32Array;
+  readonly colors: Float32Array;
+  readonly ages: Float32Array;
   prevSpeed: number;
   started: boolean;
 }
 
-// ── Blade Segment ──────────────────────────────────────────────────
-
-interface BladeSegment {
-  base: TransformNode;
-  tip: TransformNode;
+interface TrailBundle {
+  readonly mesh: Mesh;
+  readonly buffers: TrailBuffers;
 }
 
-// ── Saber Visual ───────────────────────────────────────────────────
-
-interface SaberVisual {
-  root: TransformNode;
-  blade: BladeSegment;
+interface CollisionEvent {
+  readonly point: Vector3;
 }
 
 // ── Entity ─────────────────────────────────────────────────────────
@@ -100,7 +105,8 @@ type Entity = {
   hand?: Hand;
   input?: WebXRInputSource;
   saber?: SaberVisual;
-  trail?: TrailState;
+  trailMesh?: Mesh;
+  trailBuffers?: TrailBuffers;
   gripBound?: true;
 };
 
@@ -108,18 +114,13 @@ type Entity = {
 
 const world = new World<Entity>();
 
-const needsSaber   = world.with('hand', 'input').without('saber');
-const needsGrip    = world.with('input', 'saber', 'trail').without('gripBound');
+// Lifecycle hooks
+const controllers = world.with('hand', 'input');
+
+// Per-frame systems
+const needsGrip    = world.with('input', 'saber', 'trailBuffers', 'trailMesh').without('gripBound');
+const activeTrails = world.with('saber', 'trailBuffers', 'trailMesh', 'gripBound');
 const activeSabers = world.with('saber', 'gripBound');
-const withTrail    = world.with('trail', 'saber', 'gripBound');
-const withSaber    = world.with('saber');
-const withTrailAny = world.with('trail');
-
-// ── Collision Event ────────────────────────────────────────────────
-
-interface CollisionEvent {
-  point: Vector3;
-}
 
 // ── Saber Construction ─────────────────────────────────────────────
 
@@ -161,13 +162,9 @@ function buildSaber(name: string, color: Color3): SaberVisual {
   return { root, blade: { base, tip } };
 }
 
-function disposeSaber(saber: SaberVisual): void {
-  saber.root.dispose(false, true);
-}
-
 // ── Trail Construction ─────────────────────────────────────────────
 
-function buildTrail(name: string, color: Color3): TrailState {
+function buildTrail(name: string, color: Color3): TrailBundle {
   const vertexCount = TRAIL_SAMPLE_COUNT * 2;
   const positions = new Float32Array(vertexCount * 3);
   const colors = new Float32Array(vertexCount * 4);
@@ -205,122 +202,131 @@ function buildTrail(name: string, color: Color3): TrailState {
 
   mesh.setEnabled(false);
 
-  return { mesh, positions, colors, ages, prevSpeed: 0, started: false };
+  return { mesh, buffers: { positions, colors, ages, prevSpeed: 0, started: false } };
 }
 
-function startTrail(trail: TrailState, blade: BladeSegment): void {
+function startTrail(buffers: TrailBuffers, mesh: Mesh, blade: BladeSegment): void {
   const bp = blade.base.getAbsolutePosition();
   const tp = blade.tip.getAbsolutePosition();
 
   for (let i = 0; i < TRAIL_SAMPLE_COUNT; i++) {
     const offset = i * TRAIL_FLOATS_PER_SAMPLE;
-    trail.positions[offset]     = bp.x;
-    trail.positions[offset + 1] = bp.y;
-    trail.positions[offset + 2] = bp.z;
-    trail.positions[offset + 3] = tp.x;
-    trail.positions[offset + 4] = tp.y;
-    trail.positions[offset + 5] = tp.z;
-    trail.ages[i] = -1;
-    trail.colors[i * 2 * 4 + 3] = 0;
-    trail.colors[(i * 2 + 1) * 4 + 3] = 0;
+    buffers.positions[offset]     = bp.x;
+    buffers.positions[offset + 1] = bp.y;
+    buffers.positions[offset + 2] = bp.z;
+    buffers.positions[offset + 3] = tp.x;
+    buffers.positions[offset + 4] = tp.y;
+    buffers.positions[offset + 5] = tp.z;
+    buffers.ages[i] = -1;
+    buffers.colors[i * 2 * 4 + 3] = 0;
+    buffers.colors[(i * 2 + 1) * 4 + 3] = 0;
   }
-  trail.ages[TRAIL_SAMPLE_COUNT - 1] = 0;
-  trail.prevSpeed = 0;
-  trail.started = true;
+  buffers.ages[TRAIL_SAMPLE_COUNT - 1] = 0;
+  buffers.prevSpeed = 0;
+  buffers.started = true;
 
-  trail.mesh.updateVerticesData(VertexBuffer.PositionKind, trail.positions);
-  trail.mesh.updateVerticesData(VertexBuffer.ColorKind, trail.colors);
-  trail.mesh.setEnabled(true);
+  mesh.updateVerticesData(VertexBuffer.PositionKind, buffers.positions);
+  mesh.updateVerticesData(VertexBuffer.ColorKind, buffers.colors);
+  mesh.setEnabled(true);
 }
 
-function disposeTrail(trail: TrailState): void {
-  trail.mesh.dispose(false, true);
+// ── Visual Pipeline — onEnter / onExit ────────────────────────────
+
+function createVisualPipeline(): Teardown {
+  const teardowns: Teardown[] = [];
+
+  teardowns.push(onEnter(controllers, (entity) => {
+    const name = `saber_${entity.hand}`;
+    const color = handColor(theme, entity.hand);
+
+    const saber = buildSaber(name, color);
+    const trail = buildTrail(name, color);
+
+    world.update(entity, {
+      saber,
+      trailMesh: trail.mesh,
+      trailBuffers: trail.buffers,
+    });
+  }));
+
+  teardowns.push(onExit(controllers, (entity) => {
+    if (entity.saber) entity.saber.root.dispose(false, true);
+    if (entity.trailMesh) entity.trailMesh.dispose(false, true);
+  }));
+
+  return () => { for (const td of teardowns) td(); };
 }
 
 // ── Systems ────────────────────────────────────────────────────────
-
-function createSaberSetupSystem(scene: Scene): System {
-  // scene used for LastCreatedScene context — sabers rely on it
-  void scene;
-  return () => {
-    for (const entity of needsSaber) {
-      const name  = `saber_${entity.hand}`;
-      const color = handColor(theme, entity.hand);
-      const saber = buildSaber(name, color);
-      const trail = buildTrail(name, color);
-
-      world.addComponent(entity, 'saber', saber);
-      world.addComponent(entity, 'trail', trail);
-    }
-  };
-}
 
 function createGripBindSystem(): System {
   return () => {
     for (const entity of needsGrip) {
       const grip = entity.input.grip;
       if (!grip) continue;
-
       entity.saber.root.parent = grip;
-      startTrail(entity.trail, entity.saber.blade);
+      startTrail(entity.trailBuffers, entity.trailMesh, entity.saber.blade);
       world.addComponent(entity, 'gripBound', true);
     }
   };
 }
 
-function createTrailUpdateSystem(): System {
+function createTrailUpdateSystem(scene: Scene): System {
   const LIVE = TRAIL_SAMPLE_COUNT - 1;
   const LIVE_OFFSET = LIVE * TRAIL_FLOATS_PER_SAMPLE;
+  const engine = scene.getEngine();
 
   return () => {
-    for (const entity of withTrail) {
-      const trail = entity.trail;
-      if (!trail.started) continue;
+    const dt = engine.getDeltaTime() / 1000;
+
+    for (const entity of activeTrails) {
+      const buffers = entity.trailBuffers;
+      if (!buffers.started) continue;
 
       const bp = entity.saber.blade.base.getAbsolutePosition();
       const tp = entity.saber.blade.tip.getAbsolutePosition();
 
-      const dx = tp.x - trail.positions[LIVE_OFFSET + 3];
-      const dy = tp.y - trail.positions[LIVE_OFFSET + 4];
-      const dz = tp.z - trail.positions[LIVE_OFFSET + 5];
+      const dx = tp.x - buffers.positions[LIVE_OFFSET + 3];
+      const dy = tp.y - buffers.positions[LIVE_OFFSET + 4];
+      const dz = tp.z - buffers.positions[LIVE_OFFSET + 5];
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
       if (dist > TRAIL_EMIT_THRESHOLD) {
-        trail.positions.copyWithin(0, TRAIL_FLOATS_PER_SAMPLE);
-        trail.ages.copyWithin(0, 1);
-        trail.ages[LIVE] = 0;
+        buffers.positions.copyWithin(0, TRAIL_FLOATS_PER_SAMPLE);
+        buffers.ages.copyWithin(0, 1);
+        buffers.ages[LIVE] = 0;
       }
 
-      trail.positions[LIVE_OFFSET]     = bp.x;
-      trail.positions[LIVE_OFFSET + 1] = bp.y;
-      trail.positions[LIVE_OFFSET + 2] = bp.z;
-      trail.positions[LIVE_OFFSET + 3] = tp.x;
-      trail.positions[LIVE_OFFSET + 4] = tp.y;
-      trail.positions[LIVE_OFFSET + 5] = tp.z;
+      buffers.positions[LIVE_OFFSET]     = bp.x;
+      buffers.positions[LIVE_OFFSET + 1] = bp.y;
+      buffers.positions[LIVE_OFFSET + 2] = bp.z;
+      buffers.positions[LIVE_OFFSET + 3] = tp.x;
+      buffers.positions[LIVE_OFFSET + 4] = tp.y;
+      buffers.positions[LIVE_OFFSET + 5] = tp.z;
 
-      const accel = dist - trail.prevSpeed;
+      const accel = dist - buffers.prevSpeed;
       const fadeRate = Math.max(TRAIL_FADE_RATE_MIN, Math.min(TRAIL_FADE_RATE_MAX, 1 + accel * TRAIL_ACCEL_SENSITIVITY));
-      trail.prevSpeed = dist;
+      buffers.prevSpeed = dist;
 
       for (let i = 0; i < LIVE; i++) {
         let tipAlpha = 0;
         let baseAlpha = 0;
-        if (trail.ages[i] >= 0) {
-          trail.ages[i] += fadeRate;
-          const t = trail.ages[i] / TRAIL_MAX_AGE;
+        if (buffers.ages[i] >= 0) {
+          buffers.ages[i] += fadeRate * dt * 60;
+          const t = buffers.ages[i] / TRAIL_MAX_AGE;
           if (t < 1) {
             tipAlpha = TRAIL_SPAWN_ALPHA_TIP * (1 - t);
             baseAlpha = TRAIL_SPAWN_ALPHA_BASE * (1 - t);
           }
         }
-        trail.colors[i * 2 * 4 + 3] = baseAlpha;
-        trail.colors[(i * 2 + 1) * 4 + 3] = tipAlpha;
+        buffers.colors[i * 2 * 4 + 3] = baseAlpha;
+        buffers.colors[(i * 2 + 1) * 4 + 3] = tipAlpha;
       }
-      trail.colors[LIVE * 2 * 4 + 3] = 0;
-      trail.colors[(LIVE * 2 + 1) * 4 + 3] = 0;
+      buffers.colors[LIVE * 2 * 4 + 3] = 0;
+      buffers.colors[(LIVE * 2 + 1) * 4 + 3] = 0;
 
-      trail.mesh.updateVerticesData(VertexBuffer.PositionKind, trail.positions);
-      trail.mesh.updateVerticesData(VertexBuffer.ColorKind, trail.colors);
+      entity.trailMesh.updateVerticesData(VertexBuffer.PositionKind, buffers.positions);
+      entity.trailMesh.updateVerticesData(VertexBuffer.ColorKind, buffers.colors);
     }
   };
 }
@@ -348,9 +354,15 @@ function createCollisionSystem(
 
 // ── Environment ────────────────────────────────────────────────────
 
+interface PillarSnapshot {
+  readonly mat: StandardMaterial;
+  readonly baseColor: Color3;
+}
+
 interface Environment {
   onBeat(): void;
   dispose(): void;
+  createBeatDecaySystem(): System;
 }
 
 function createEnvironment(scene: Scene): Environment {
@@ -369,13 +381,13 @@ function createEnvironment(scene: Scene): Environment {
   glow.customEmissiveColorSelector = (mesh, _subMesh, _material, result) => {
     if (mesh.name.endsWith('Trail')) {
       result.set(0, 0, 0, 0);
+      return;
+    }
+    if (mesh.material instanceof StandardMaterial) {
+      const ec = mesh.material.emissiveColor;
+      result.set(ec.r, ec.g, ec.b, 1);
     } else {
-      const mat = mesh.material as { emissiveColor?: { r: number; g: number; b: number } } | null;
-      if (mat?.emissiveColor) {
-        result.set(mat.emissiveColor.r, mat.emissiveColor.g, mat.emissiveColor.b, 1);
-      } else {
-        result.set(0, 0, 0, 0);
-      }
+      result.set(0, 0, 0, 0);
     }
   };
 
@@ -423,7 +435,7 @@ function createEnvironment(scene: Scene): Environment {
   }
 
   // Pillars
-  const pillarMats: StandardMaterial[] = [];
+  const pillarSnapshots: PillarSnapshot[] = [];
   const pillarStart = Math.floor(PILLAR_COUNT / 2) * PILLAR_GAP;
 
   for (let i = 0; i < PILLAR_COUNT; i++) {
@@ -435,7 +447,7 @@ function createEnvironment(scene: Scene): Environment {
     const pL = MeshBuilder.CreateCylinder(`pillarL${i}`, { height: 8, diameter: 0.12, tessellation: 12 });
     pL.position.set(PILLAR_X, 2, z);
     pL.material = mL;
-    pillarMats.push(mL);
+    pillarSnapshots.push({ mat: mL, baseColor: mL.emissiveColor.clone() });
 
     const mR = new StandardMaterial(`pillarMatR${i}`);
     mR.emissiveColor = new Color3(0.4, 0, 0.6);
@@ -443,7 +455,7 @@ function createEnvironment(scene: Scene): Environment {
     const pR = MeshBuilder.CreateCylinder(`pillarR${i}`, { height: 8, diameter: 0.12, tessellation: 12 });
     pR.position.set(-PILLAR_X, 2, z);
     pR.material = mR;
-    pillarMats.push(mR);
+    pillarSnapshots.push({ mat: mR, baseColor: mR.emissiveColor.clone() });
 
     if (i < 2) {
       const lL = new PointLight(`pointL${i}`, new Vector3(-PILLAR_X, 0.5, z));
@@ -458,22 +470,32 @@ function createEnvironment(scene: Scene): Environment {
     }
   }
 
-  function onBeat(): void {
-    scene.fogDensity = FOG_BASE * 1.8;
-    setTimeout(() => { scene.fogDensity = FOG_BASE; }, 120);
+  // Beat flash state — closed over, not module-level
+  let beatFlash = 0;
 
-    for (const mat of pillarMats) {
-      const base = mat.emissiveColor.clone();
-      mat.emissiveColor = base.scale(2.5);
-      setTimeout(() => { mat.emissiveColor = base; }, 120);
-    }
+  function onBeat(): void {
+    beatFlash = 1;
+  }
+
+  function createBeatDecaySystem(): System {
+    const engine = scene.getEngine();
+    return () => {
+      if (beatFlash <= 0) return;
+      const dt = engine.getDeltaTime() / 1000;
+      const t = Math.max(0, beatFlash - dt / 0.12);
+      beatFlash = t;
+      scene.fogDensity = FOG_BASE * (1 + 0.8 * t);
+      for (const { mat, baseColor } of pillarSnapshots) {
+        mat.emissiveColor = baseColor.scale(1 + 1.5 * t);
+      }
+    };
   }
 
   function dispose(): void {
     glow.dispose();
   }
 
-  return { onBeat, dispose };
+  return { onBeat, dispose, createBeatDecaySystem };
 }
 
 // ── Input Bridge ───────────────────────────────────────────────────
@@ -500,14 +522,6 @@ function bridgeInput(input: WebXRDefaultExperience['input']): Teardown {
   };
 }
 
-// ── Disposal ───────────────────────────────────────────────────────
-
-function setupDisposal(): Teardown {
-  const unsub1 = onRemoved(withSaber, (e) => disposeSaber(e.saber));
-  const unsub2 = onRemoved(withTrailAny, (e) => disposeTrail(e.trail));
-  return () => { unsub1(); unsub2(); };
-}
-
 // ── Bootstrap ──────────────────────────────────────────────────────
 
 function showVersion(): void {
@@ -531,7 +545,7 @@ function createScene(engine: Engine): Scene {
   return scene;
 }
 
-async function setupWebXR(scene: Scene): Promise<void> {
+async function setupWebXR(scene: Scene, env: Environment): Promise<void> {
   const xr = await WebXRDefaultExperience.CreateAsync(scene, {
     uiOptions: { sessionMode: 'immersive-vr' },
     disableTeleportation: true,
@@ -541,20 +555,28 @@ async function setupWebXR(scene: Scene): Promise<void> {
     inputOptions: { doNotLoadControllerMeshes: true },
   });
 
-  setupDisposal();
-
   const collisionEvents = createEventQueue<CollisionEvent>((_event) => {
     // Future: sparks, haptics, scoring
   });
 
-  const tick = createPipeline([
-    createSaberSetupSystem(scene),
-    createGripBindSystem(),
-    createTrailUpdateSystem(),
-    createCollisionSystem((event) => collisionEvents.push(event)),
-  ]);
+  const disposeVisuals = createVisualPipeline();
 
-  bridgeInput(xr.input);
+  const tick = createPipeline(
+    [
+      createGripBindSystem(),
+      createTrailUpdateSystem(scene),
+      createCollisionSystem((event) => collisionEvents.push(event)),
+      env.createBeatDecaySystem(),
+    ],
+    [collisionEvents],
+  );
+
+  const disposeInput = bridgeInput(xr.input);
+
+  // Capture teardowns for future shutdown logic
+  void disposeVisuals;
+  void disposeInput;
+
   scene.onBeforeRenderObservable.add(() => tick());
 }
 
@@ -563,8 +585,8 @@ async function main(): Promise<void> {
   const engine = createEngine();
   const scene  = createScene(engine);
 
-  createEnvironment(scene);
-  setupWebXR(scene).catch(console.error);
+  const env = createEnvironment(scene);
+  setupWebXR(scene, env).catch(console.error);
 
   engine.runRenderLoop(() => scene.render());
   window.addEventListener('resize', () => engine.resize());

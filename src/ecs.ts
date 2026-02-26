@@ -1,135 +1,97 @@
 /**
  * Generic ECS framework layer.
- * Miniplex + MobX + mobx-utils wiring utilities.
+ * Miniplex + MobX wiring utilities.
  * Zero game knowledge — reusable in any project.
  */
 import { type Query } from 'miniplex';
-import { observable, autorun, runInAction, type IObservableArray } from 'mobx';
-import { createTransformer, queueProcessor } from 'mobx-utils';
-import type { IDisposer } from 'mobx-utils/lib/utils';
+import { observable, reaction } from 'mobx';
 
 // ── Types ──────────────────────────────────────────────────────────
 
 /** A system is a zero-arg function called once per frame. */
 export type System = () => void;
 
-/** Disposer returned by bridge/event setup for teardown. */
-export type Teardown = IDisposer;
+/** Disposer returned by lifecycle/event setup for teardown. */
+export type Teardown = () => void;
 
-// ── Reactive Bridge: Query → Observable Array ──────────────────────
+// ── Entity lifecycle hooks (event layer — miniplex native) ────────
 
 /**
- * Bridges a miniplex query into a MobX shallow observable array.
- * Preserves object identity (deep: false avoids proxy wrapping).
- * Returns the observable array + teardown function.
+ * Fires callback once per entity entering the query.
+ * Returns a teardown to unsubscribe.
  */
-export function bridgeQuery<E>(query: Query<E>): {
-  entities: IObservableArray<E>;
-  dispose: Teardown;
-} {
-  const entities = observable.array<E>([], { deep: false });
+export function onEnter<E>(query: Query<E>, cb: (entity: E) => void): Teardown {
+  return query.onEntityAdded.subscribe(cb);
+}
 
-  // Seed with existing entities
-  for (const e of query) {
-    entities.push(e);
-  }
+/**
+ * Fires callback once per entity leaving the query.
+ * Miniplex preserves entity intact in the callback.
+ * Returns a teardown to unsubscribe.
+ */
+export function onExit<E>(query: Query<E>, cb: (entity: E) => void): Teardown {
+  return query.onEntityRemoved.subscribe(cb);
+}
 
-  const unsub1 = query.onEntityAdded.subscribe((e) =>
-    runInAction(() => entities.push(e)),
-  );
-  const unsub2 = query.onEntityRemoved.subscribe((e) =>
-    runInAction(() => {
-      const i = entities.indexOf(e);
-      if (i >= 0) entities.splice(i, 1);
-    }),
-  );
+// ── Reactive state (reaction layer — MobX) ────────────────────────
 
+/**
+ * Creates a reactive state cell. MobX is the implementation detail.
+ * If we ever swap to signals or nanostores, call sites don't change.
+ */
+export function state<T>(initial: T): { get(): T; set(v: T): void } {
+  const box = observable.box(initial, { deep: false });
   return {
-    entities,
-    dispose: () => { unsub1(); unsub2(); },
+    get: () => box.get(),
+    set: (v: T) => box.set(v),
   };
 }
 
-// ── Entity → Visual Bridge (createTransformer wrapper) ─────────────
-
 /**
- * Creates a memoized entity→visual transformer with auto-cleanup.
- * Must be consumed inside an autorun or other MobX reaction.
- *
- * @param create  Given an entity, produce its visual representation.
- * @param cleanup Called when the entity leaves all reactions (dispose visuals).
+ * Reacts to observable changes. Uses reaction (not autorun) —
+ * only tracks observables in the read function. The effect callback
+ * is untracked, preventing spurious re-triggers.
  */
-export function entityVisualBridge<E, V>(
-  create: (entity: E) => V,
-  cleanup: (visual: V | undefined, entity?: E) => void,
-): (entity: E) => V {
-  return createTransformer(create, cleanup);
+export function reactTo<T>(read: () => T, effect: (value: T) => void): Teardown {
+  return reaction(read, effect, { fireImmediately: true });
 }
 
-/**
- * Drives a transformer over a bridged observable array inside an autorun.
- * Returns a dispose function that tears down the autorun.
- */
-export function driveTransformer<E, V>(
-  entities: IObservableArray<E>,
-  transformer: (entity: E) => V,
-): Teardown {
-  return autorun(() => {
-    for (const e of entities) {
-      transformer(e);
-    }
-  });
-}
+// ── Event queue (fire-and-forget events) ──────────────────────────
 
-// ── Event Queue ────────────────────────────────────────────────────
-
-/**
- * Creates a typed event queue backed by a MobX observable array.
- * Single-consumer: one processor dispatches to all handlers.
- *
- * @param processor Called once per event pushed to the queue.
- * @returns push function + dispose teardown.
- */
-export function createEventQueue<T>(
-  processor: (event: T) => void,
-): {
+interface EventQueue<T> {
   push: (event: T) => void;
+  flush: () => void;
   dispose: Teardown;
-} {
-  const queue = observable.array<T>([], { deep: false });
-  const dispose = queueProcessor(queue, processor);
+}
+
+/**
+ * Creates a typed event queue. No MobX — simple buffer + flush.
+ * Single-consumer: one handler dispatches to all concerns.
+ * Pipeline calls flush() at end of frame automatically.
+ */
+export function createEventQueue<T>(handler: (event: T) => void): EventQueue<T> {
+  const queue: T[] = [];
   return {
-    push: (event: T) => runInAction(() => queue.push(event)),
-    dispose,
+    push: (event: T) => { queue.push(event); },
+    flush: () => {
+      for (let i = 0; i < queue.length; i++) handler(queue[i]);
+      queue.length = 0;
+    },
+    dispose: () => { queue.length = 0; },
   };
 }
 
 // ── System Pipeline ────────────────────────────────────────────────
 
 /**
- * Creates a pipeline runner from an ordered array of systems.
- * Call the returned function once per frame.
+ * Creates a pipeline runner. Systems run first, then all queues flush.
+ * Consumer can't forget to flush or flush in wrong order.
  */
-export function createPipeline(systems: System[]): System {
+export function createPipeline(systems: System[], queues?: { flush(): void }[]): System {
   return () => {
-    for (const system of systems) {
-      system();
-    }
+    for (const system of systems) system();
+    if (queues) for (const q of queues) q.flush();
   };
-}
-
-// ── Disposal Hooks ─────────────────────────────────────────────────
-
-/**
- * Subscribes a cleanup callback to a query's onEntityRemoved event.
- * When an entity leaves the query (removed from world or component stripped),
- * the callback fires. Returns a teardown to unsubscribe.
- */
-export function onRemoved<E>(
-  query: Query<E>,
-  callback: (entity: E) => void,
-): Teardown {
-  return query.onEntityRemoved.subscribe(callback);
 }
 
 // ── Re-exports for convenience ─────────────────────────────────────
