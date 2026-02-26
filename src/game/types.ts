@@ -27,8 +27,10 @@ export interface TrailBundle {
   readonly buffers: TrailBuffers;
 }
 
-export interface CollisionEvent {
+export interface SaberCollisionEvent {
   readonly point: Vector3;
+  readonly inputA: WebXRInputSource;
+  readonly inputB: WebXRInputSource;
 }
 
 export type Entity = {

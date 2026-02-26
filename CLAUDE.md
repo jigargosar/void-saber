@@ -67,7 +67,6 @@ Systems run in order inside `scene.onBeforeRenderObservable`:
 
 ## Conventions
 
-- **Implicit scene assignment** (ADR-001): Babylon constructors omit `scene` param, relies on `EngineStore.LastCreatedScene`. Single-scene app only.
 - **`dispose(false, true)`**: Disposes node + materials + textures for full cleanup.
 - **Trail mesh**: 120 vertices (60 samples × 2), mutable Float32Array buffers updated via `updateVerticesData`.
 - **Collision geometry**: `segmentDistance()` in `src/collision.ts` — robust 3D line-segment closest-distance.

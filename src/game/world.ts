@@ -9,4 +9,5 @@ export const controllers = world.with('hand', 'input');
 // Per-frame system queries
 export const needsGrip    = world.with('input', 'saber', 'trailBuffers', 'trailMesh').without('gripBound');
 export const activeTrails = world.with('saber', 'trailBuffers', 'trailMesh', 'gripBound');
-export const activeSabers = world.with('saber', 'gripBound');
+export const activeSabers       = world.with('saber', 'gripBound');
+export const collidableSabers   = world.with('input', 'saber', 'gripBound');

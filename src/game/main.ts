@@ -9,12 +9,14 @@ import '@babylonjs/loaders/glTF';
 
 import { createEventQueue, createPipeline } from '../ecs';
 import { type Theme } from '../theme';
-import { type CollisionEvent } from './types';
+import { type SaberCollisionEvent } from './types';
 import { createEnvironment, type Environment } from './environment';
 import { createVisualPipeline } from './visual-pipeline';
 import { createGripBindSystem } from './grip-bind-system';
 import { createTrailUpdateSystem } from './trail-update-system';
-import { createCollisionSystem } from './collision-system';
+import { createSaberCollisionSystem } from './saber-collision-system';
+import { handleSaberHaptics } from './saber-haptic-handler';
+import { createSaberSparkHandler } from './saber-spark-handler';
 import { bridgeInput } from './input-bridge';
 
 // ── Theme ──────────────────────────────────────────────────────────
@@ -60,8 +62,10 @@ async function setupWebXR(scene: Scene, env: Environment): Promise<void> {
     inputOptions: { doNotLoadControllerMeshes: true },
   });
 
-  const collisionEvents = createEventQueue<CollisionEvent>((_event) => {
-    // Future: sparks, haptics, scoring
+  const handleSaberSparks = createSaberSparkHandler(scene);
+  const saberCollisionEvents = createEventQueue<SaberCollisionEvent>((event) => {
+    handleSaberHaptics(event);
+    handleSaberSparks(event);
   });
 
   const disposeVisuals = createVisualPipeline(theme);
@@ -70,10 +74,10 @@ async function setupWebXR(scene: Scene, env: Environment): Promise<void> {
     [
       createGripBindSystem(),
       createTrailUpdateSystem(scene),
-      createCollisionSystem((event) => collisionEvents.push(event)),
+      createSaberCollisionSystem((event) => saberCollisionEvents.push(event)),
       env.createBeatDecaySystem(),
     ],
-    [collisionEvents],
+    [saberCollisionEvents],
   );
 
   const disposeInput = bridgeInput(xr.input);
