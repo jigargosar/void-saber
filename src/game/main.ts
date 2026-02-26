@@ -100,7 +100,10 @@ async function main(): Promise<void> {
 
   const song = generateSong(42);
   const audio = createAudioPlayer(song, () => env.onBeat());
-  audio.start();
+  const canvas = engine.getRenderingCanvas();
+  if (canvas) {
+    canvas.addEventListener('click', () => audio.start(), { once: true });
+  }
 
   setupWebXR(scene, env).catch(console.error);
 
