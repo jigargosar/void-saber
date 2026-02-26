@@ -38,8 +38,8 @@ export function createSaberSparkHandler(scene: Scene): (event: SaberCollisionEve
     ps.colorDead = new Color4(1, 0.4, 0.1, 0);
     ps.blendMode = ParticleSystem.BLENDMODE_ADD;
 
-    ps.direction1 = new Vector3(-1, -0.3, -1);
-    ps.direction2 = new Vector3(1, 0.3, 1);
+    ps.direction1 = new Vector3(-1, -1, -1);
+    ps.direction2 = new Vector3(1, 1, 1);
     ps.gravity = Vector3.Zero();
 
     ps.minEmitBox = Vector3.Zero();
