@@ -3,6 +3,7 @@ import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Color3 } from '@babylonjs/core/Maths/math';
+import {IDisposable} from "@babylonjs/core";
 
 const darkSteel  = new Color3(0.35, 0.35, 0.4);
 const lightSteel = new Color3(0.4, 0.4, 0.4);
@@ -17,10 +18,9 @@ export interface BladeSegment {
   tip: TransformNode;
 }
 
-export interface Saber {
+export interface Saber extends IDisposable {
   root: TransformNode;
   blade: BladeSegment;
-  dispose(): void;
 }
 
 function createHandle(name: string, parent: TransformNode): Mesh {
