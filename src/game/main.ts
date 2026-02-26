@@ -18,6 +18,8 @@ import { createSaberCollisionSystem } from './saber-collision-system';
 import { handleSaberHaptics } from './saber-haptic-handler';
 import { createSaberSparkHandler } from './saber-spark-handler';
 import { bridgeInput } from './input-bridge';
+import { generateSong } from '../music-engine';
+import { createAudioPlayer } from './audio-player';
 
 // ── Theme ──────────────────────────────────────────────────────────
 
@@ -95,6 +97,11 @@ async function main(): Promise<void> {
   const scene  = createScene(engine);
 
   const env = createEnvironment(scene, theme);
+
+  const song = generateSong(42);
+  const audio = createAudioPlayer(song, () => env.onBeat());
+  audio.start();
+
   setupWebXR(scene, env).catch(console.error);
 
   engine.runRenderLoop(() => scene.render());
