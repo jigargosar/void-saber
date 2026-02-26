@@ -18,6 +18,7 @@ multiply coupling with each new feature.
 
 We tested every assumption using NullEngine in isolated Node.js scripts.
 Nothing here is assumed from documentation.
+See [tests/verify-babylon.mjs](tests/verify-babylon.mjs) for all assertions.
 
 **Scene registration vs parenting are independent:**
 - `new TransformNode(name, scene)` registers in `scene.transformNodes` with `parent = null`
@@ -70,6 +71,7 @@ TypeScript narrows the types — no `!`, no guards, no `undefined` checks.
 - Lifecycle events on queries — `onEntityAdded` / `onEntityRemoved` per query
 - Queries are cached and deduplicated by configuration
 
+All claims verified: see [tests/verify-miniplex.mjs](tests/verify-miniplex.mjs)
 Source: https://github.com/hmans/miniplex
 
 ## MobX + mobx-utils — Reactive Engine
@@ -102,20 +104,29 @@ disposal. The reactive runtime handles creation, updates, and destruction.
 
 Observable array acts as an event queue. Processor runs for each item pushed.
 
+**Limitation discovered in testing:** `queueProcessor` is single-consumer. It
+removes items from the array after processing. A second processor on the same
+array sees nothing — the first one already consumed everything. This is a queue,
+not a pub/sub topic.
+
+**Workaround:** One processor per event type, all handlers inside it. The
+processor IS the dispatch point — it lists everything that happens for that event.
+
 ```typescript
 const collisionEvents = observable([]);
 queueProcessor(collisionEvents, (event) => {
+  // All reactions to collision listed here — single consumer, multiple handlers
   spawnSparks(event.point);
   triggerHaptic(event.hand);
+  addScore(event.blockId);
 });
 
 // Any system can push events:
-collisionEvents.push({ point, hand });
+collisionEvents.push({ point, hand, blockId });
 ```
 
-Multiple systems push events. Multiple processors consume them. No system knows
-about any other. Adding a new reaction (screen shake, sound) means adding a
-processor — nothing existing changes.
+Multiple systems push events. One processor dispatches to all handlers. Adding a
+new reaction (screen shake, sound) means adding a line to the processor.
 
 ### fromResource — External Event Bridge
 
@@ -133,6 +144,7 @@ const controllerState = fromResource(
 
 One thin adapter at the boundary. Everything inside is reactive, not callback-based.
 
+All claims verified: see [tests/verify-mobx.mjs](tests/verify-mobx.mjs)
 Source: https://github.com/mobxjs/mobx-utils
 
 ## Systems — Plain Functions in the Render Loop
@@ -260,19 +272,44 @@ the reference from the parent entity. Detection is not cleanup.
 Consolidated to miniplex (entities) + MobX/mobx-utils (reactivity). Two libraries,
 complementary concerns, zero overlap.
 
+# Verified
+
+Core library behaviors confirmed via isolated test scripts (29 assertions total):
+
+- **Babylon.js** (8 tests): scene registration, parenting, disposal cascade,
+  material leak without second arg, LastCreatedScene fallback.
+  See [tests/verify-babylon.mjs](tests/verify-babylon.mjs)
+
+- **Miniplex** (11 tests): entity creation, with/without queries, addComponent/
+  removeComponent reindexing, onEntityAdded/onEntityRemoved events, marker
+  components, query chaining for state-based detection.
+  See [tests/verify-miniplex.mjs](tests/verify-miniplex.mjs)
+
+- **MobX/mobx-utils** (10 tests): createTransformer memoization, re-run on
+  observable change, onCleanup on dispose, cleanup on entity removal from array,
+  queueProcessor single-consumer behavior, fromResource subscribe/unsubscribe.
+  See [tests/verify-mobx.mjs](tests/verify-mobx.mjs)
+
+# Limitations Discovered
+
+**queueProcessor is single-consumer.** It removes items from the array after
+processing. Multiple processors on the same queue lose events. Workaround:
+one processor per event type dispatching to all handlers. See queueProcessor
+section above.
+
 # Unverified — Requires Prototype
 
-Before investing in migration, these assumptions need isolated testing:
+These involve library integration (not individual behavior) and need testing
+with actual Babylon rendering:
 
-1. `createTransformer` with Babylon meshes — does onCleanup fire reliably?
-   Does the memoization table handle entity identity correctly?
-2. `fromResource` with Babylon observables — does auto-subscribe/unsubscribe
-   work with `onControllerAddedObservable`?
-3. MobX reactivity inside a 60fps render loop — overhead of observable reads
-   in hot systems (trail update, collision check)?
-4. Miniplex query performance with hundreds of block entities spawning per second
-5. `createTransformer` memoization as reverse index — when entity B is removed,
-   do all transformers that referenced B re-evaluate and clean up?
+1. `createTransformer` + Babylon meshes — does onCleanup correctly dispose meshes
+   and materials when entities leave the reactive scope?
+2. `fromResource` + Babylon observables — does auto-subscribe/unsubscribe work
+   with WebXR input observables specifically?
+3. MobX overhead in a 60fps render loop — cost of observable reads in hot paths
+   (trail vertex updates, collision checks every frame)?
+4. Miniplex + createTransformer together — does removing an entity from the world
+   trigger createTransformer cleanup automatically via the reactive chain?
 
 Next step: prototype the saber→grip relationship using miniplex + createTransformer
-in an isolated NullEngine test script.
++ NullEngine to verify integration behavior.

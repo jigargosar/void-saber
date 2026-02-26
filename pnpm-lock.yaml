@@ -20,6 +20,12 @@ importers:
       miniplex:
         specifier: ^2.0.0
         version: 2.0.0
+      mobx:
+        specifier: ^6.15.0
+        version: 6.15.0
+      mobx-utils:
+        specifier: ^6.1.1
+        version: 6.1.1(mobx@6.15.0)
       statery:
         specifier: ^0.7.1
         version: 0.7.1
@@ -579,6 +585,14 @@ packages:
   miniplex@2.0.0:
     resolution: {integrity: sha512-pJlxmlPf5Qyx12amgOCyRE6Lzw28ct2G0lF9xn7/xudLtA/xDOUnCIU2xOxCk8GkjePYctcNpjmFshJp/Ht66A==}
 
+  mobx-utils@6.1.1:
+    resolution: {integrity: sha512-ZR4tOKucWAHOdMjqElRl2BEvrzK7duuDdKmsbEbt2kzgVpuLuoYLiDCjc3QwWQl8CmOlxPgaZQpZ7emwNqPkIg==}
+    peerDependencies:
+      mobx: ^6.0.0
+
+  mobx@6.15.0:
+    resolution: {integrity: sha512-UczzB+0nnwGotYSgllfARAqWCJ5e/skuV2K/l+Zyck/H6pJIhLXuBnz+6vn2i211o7DtbE78HQtsYEKICHGI+g==}
+
   nanoid@3.3.11:
     resolution: {integrity: sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
@@ -1050,6 +1064,12 @@ snapshots:
       '@hmans/id': 0.0.1
       '@hmans/queue': 0.0.1
       '@miniplex/bucket': 2.0.0
+
+  mobx-utils@6.1.1(mobx@6.15.0):
+    dependencies:
+      mobx: 6.15.0
+
+  mobx@6.15.0: {}
 
   nanoid@3.3.11: {}
 

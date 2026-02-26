@@ -17,6 +17,8 @@
     "@babylonjs/loaders": "^8.52.1",
     "@tailwindcss/postcss": "^4.2.1",
     "miniplex": "^2.0.0",
+    "mobx": "^6.15.0",
+    "mobx-utils": "^6.1.1",
     "statery": "^0.7.1",
     "tailwindcss": "^4.2.1"
   },
