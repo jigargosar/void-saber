@@ -4,14 +4,13 @@ import { Vector3, Color4 } from '@babylonjs/core/Maths/math';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { type SaberCollisionEvent } from './types';
 
-const SPARK_COUNT = 30;
-const SPARK_LIFETIME_MIN = 0.05;
-const SPARK_LIFETIME_MAX = 0.15;
-const SPARK_SPEED_MIN = 2;
-const SPARK_SPEED_MAX = 6;
-const SPARK_SIZE_MIN = 0.01;
-const SPARK_SIZE_MAX = 0.04;
-const SPARK_GRAVITY = -4;
+const SPARK_COUNT = 60;
+const SPARK_LIFETIME_MIN = 0.01;
+const SPARK_LIFETIME_MAX = 0.06;
+const SPARK_SPEED_MIN = 1;
+const SPARK_SPEED_MAX = 8;
+const SPARK_SIZE_MIN = 0.004;
+const SPARK_SIZE_MAX = 0.01;
 
 export function createSaberSparkHandler(scene: Scene): (event: SaberCollisionEvent) => void {
   let sparks: ParticleSystem | null = null;
@@ -24,18 +23,28 @@ export function createSaberSparkHandler(scene: Scene): (event: SaberCollisionEve
 
     ps.minLifeTime = SPARK_LIFETIME_MIN;
     ps.maxLifeTime = SPARK_LIFETIME_MAX;
-    ps.minSize = SPARK_SIZE_MIN;
-    ps.maxSize = SPARK_SIZE_MAX;
     ps.minEmitPower = SPARK_SPEED_MIN;
     ps.maxEmitPower = SPARK_SPEED_MAX;
 
-    ps.color1 = new Color4(1, 1, 1, 1);
-    ps.color2 = new Color4(0.8, 0.6, 1, 1);
-    ps.colorDead = new Color4(0.3, 0.1, 0.5, 0);
+    ps.minSize = SPARK_SIZE_MIN;
+    ps.maxSize = SPARK_SIZE_MAX;
+    ps.minScaleX = 0.2;
+    ps.maxScaleX = 0.4;
+    ps.minScaleY = 3;
+    ps.maxScaleY = 6;
 
-    ps.direction1 = new Vector3(-1, -1, -1);
-    ps.direction2 = new Vector3(1, 1, 1);
-    ps.gravity = new Vector3(0, SPARK_GRAVITY, 0);
+    ps.color1 = new Color4(1, 1, 1, 1);
+    ps.color2 = new Color4(1, 0.8, 0.5, 1);
+    ps.colorDead = new Color4(1, 0.4, 0.1, 0);
+    ps.blendMode = ParticleSystem.BLENDMODE_ADD;
+
+    ps.direction1 = new Vector3(-1, -0.3, -1);
+    ps.direction2 = new Vector3(1, 0.3, 1);
+    ps.gravity = Vector3.Zero();
+
+    ps.minEmitBox = Vector3.Zero();
+    ps.maxEmitBox = Vector3.Zero();
+    ps.billboardMode = ParticleSystem.BILLBOARDMODE_STRETCHED_LOCAL;
 
     ps.emitRate = 0;
     ps.manualEmitCount = 0;
