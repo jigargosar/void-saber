@@ -223,9 +223,14 @@ function createVisualPipeline(): Teardown {
     const saber = buildSaber(name, color);
     const trail = buildTrail(name, color);
 
-    world.addComponent(entity, 'saber', saber);
-    world.addComponent(entity, 'trailMesh', trail.mesh);
-    world.addComponent(entity, 'trailBuffers', trail.buffers);
+    // Atomic: Object.assign + single reindex. Downstream queries
+    // (needsGrip, activeTrails) see the fully-built entity — no
+    // cascading onEnter on intermediate states.
+    world.update(entity, {
+      saber,
+      trailMesh: trail.mesh,
+      trailBuffers: trail.buffers,
+    });
   }));
 
   teardowns.push(onExit(controllers, (entity) => {
@@ -240,8 +245,12 @@ function createVisualPipeline(): Teardown {
 Why this works:
 - `onEnter` fires once per entity entering the `controllers` query — one-time creation
 - `onExit` fires once per entity leaving — one-time cleanup
-- `addComponent` reindexes the entity into downstream queries (`needsGrip`, etc.) synchronously, but those are consumed by per-frame systems, not event hooks — no cascade
+- `world.update` sets all components via `Object.assign` then reindexes once — downstream queries see the fully-built entity atomically, no cascading `onEnter` on intermediate states
 - Teardown disposes both subscriptions — clean shutdown
+
+Known limitations:
+- `onExit` on multiple related queries can cause double-disposal if both try to clean up the same resource. Keep disposal hooks on the broadest query (`controllers`) only — per-frame system queries should not have `onExit` hooks that dispose visuals.
+- `world.remove()` / `world.addComponent()` / `world.update()` are not wrapped — nothing prevents bypassing the visual pipeline's lifecycle hooks. This is inherent to the thin-wrapper approach.
 
 ## 5. buildTrail Returns TrailBundle
 
@@ -358,6 +367,10 @@ async function setupWebXR(scene: Scene): Promise<Teardown> {
   return () => {
     scene.onBeforeRenderObservable.remove(obs);
     disposeInput();
+    // Remove all entities BEFORE unsubscribing hooks — onExit fires
+    // for each remaining entity, disposing visuals while hooks are live.
+    // Miniplex has no world.clear(), iterate and remove individually.
+    for (const entity of [...world]) world.remove(entity);
     disposeVisuals();
     collisionEvents.dispose();
   };
@@ -376,17 +389,16 @@ interface PillarSnapshot {
   readonly baseColor: Color3;
 }
 
-const beatFlash = state(0);
+let beatFlash = 0;
 
 function createBeatDecaySystem(
   scene: Scene,
   pillars: readonly PillarSnapshot[],
 ): System {
   return () => {
-    const flash = beatFlash.get();
-    if (flash <= 0) return;
-    const t = Math.max(0, flash - 1 / 60 / 0.12); // decay over 120ms
-    beatFlash.set(t);
+    if (beatFlash <= 0) return;
+    const t = Math.max(0, beatFlash - 1 / 60 / 0.12); // decay over 120ms
+    beatFlash = t;
     scene.fogDensity = FOG_BASE * (1 + 0.8 * t);
     for (const { mat, baseColor } of pillars) {
       mat.emissiveColor = baseColor.scale(1 + 1.5 * t);
@@ -395,13 +407,13 @@ function createBeatDecaySystem(
 }
 
 function onBeat(): void {
-  beatFlash.set(1);
+  beatFlash = 1;
 }
 ```
 
 `PillarSnapshot` captures each material alongside its original base color at creation time. The system reads from the snapshot — no undefined reference.
 
-This eliminates `setTimeout` (spooky action at a distance) and brings beat effects into the system pipeline. Uses `state` + per-frame polling — `reactTo` not needed since we're already in the render loop.
+Plain `let` — no `state()`. This value is set by `onBeat()` and read by a per-frame system. No MobX involvement needed. Reserve `state` + `reactTo` exclusively for the UI reaction layer where reactivity is actually consumed.
 
 # Use Case → Primitive Mapping
 
