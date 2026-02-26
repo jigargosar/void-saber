@@ -4,11 +4,11 @@ import { Vector3, Color4 } from '@babylonjs/core/Maths/math';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { type SaberCollisionEvent } from './types';
 
-const SPARK_COUNT = 60;
-const SPARK_LIFETIME_MIN = 0.01;
-const SPARK_LIFETIME_MAX = 0.06;
-const SPARK_SPEED_MIN = 1;
-const SPARK_SPEED_MAX = 8;
+const SPARK_COUNT = 500;
+const SPARK_LIFETIME_MIN = 0.02;
+const SPARK_LIFETIME_MAX = 0.08;
+const SPARK_SPEED_MIN = 0.2;
+const SPARK_SPEED_MAX = 1.5;
 const SPARK_SIZE_MIN = 0.004;
 const SPARK_SIZE_MAX = 0.01;
 
@@ -28,8 +28,8 @@ export function createSaberSparkHandler(scene: Scene): (event: SaberCollisionEve
 
     ps.minSize = SPARK_SIZE_MIN;
     ps.maxSize = SPARK_SIZE_MAX;
-    ps.minScaleX = 0.2;
-    ps.maxScaleX = 0.4;
+    ps.minScaleX = 0.4;
+    ps.maxScaleX = 0.8;
     ps.minScaleY = 3;
     ps.maxScaleY = 6;
 
