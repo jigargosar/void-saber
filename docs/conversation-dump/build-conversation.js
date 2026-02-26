@@ -1,7 +1,7 @@
 const fs = require('fs');
 const readline = require('readline');
 
-const INPUT = 'docs/conversation-dump/f5762b04-62db-4428-a28c-9487b9492eed.jsonl';
+const INPUT = 'docs/conversation-dump/conversation.jsonl';
 const OUTPUT = 'docs/conversation-dump/conversation.html';
 
 async function main() {
