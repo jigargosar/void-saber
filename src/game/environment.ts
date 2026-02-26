@@ -42,7 +42,7 @@ export function createEnvironment(scene: Scene, theme: Theme): Environment {
   const glow = new GlowLayer('glow', scene, { mainTextureSamples: 4, blurKernelSize: 64 });
   glow.intensity = 1.08;
   glow.customEmissiveColorSelector = (mesh, _subMesh, _material, result) => {
-    if (mesh.name.endsWith('Trail')) {
+    if (mesh.name.endsWith('Trail') || mesh.name === 'saberSparks') {
       result.set(0, 0, 0, 0);
       return;
     }
