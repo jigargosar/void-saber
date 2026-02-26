@@ -4,7 +4,23 @@ Proper ECS Modeling for void-saber2.ts (v4)
 
 v3 established the decomposed API: `onEnter`/`onExit` (miniplex native) for entity lifecycle, `state`/`reactTo` (MobX) for reactive layer, `createEventQueue` (plain JS) for events, `createPipeline` for per-frame systems.
 
-v4 fixes: frame-rate dependent decay, unsound type guard, stale use-case table, unused return value at top level, removed documentation-as-bandaid.
+v4 fixes: frame-rate dependent decay, unsound type guard, stale use-case table, unused return value at top level, removed documentation-as-bandaid, pipeline owns queue flushing, contravariance fix.
+
+`createTransformer` bundled three concerns into one opaque abstraction. v3/v4 decompose them into explicit primitives:
+
+```
++-----+===========================+====================================+
+| #   | Concern                   | Primitive                          |
++-----+===========================+====================================+
+| 1   | Memoized creation         | onEnter (miniplex native)          |
++-----+---------------------------+------------------------------------+
+| 2   | Auto-cleanup              | onExit (miniplex native)           |
++-----+---------------------------+------------------------------------+
+| 3   | Reactive re-derivation    | reactTo (MobX, when earned)        |
++-----+---------------------------+------------------------------------+
+```
+
+Each mechanism is explicit at the call site. MobX stays but only for the reaction layer where it earns its keep. Entity lifecycle uses miniplex directly — zero indirection.
 
 # Locked Requirement
 
@@ -23,7 +39,7 @@ export type System = () => void;
 export type Teardown = () => void;
 
 // ── Per-frame systems (polling layer) ──
-export function createPipeline(systems: System[], queues?: EventQueue<unknown>[]): System;
+export function createPipeline(systems: System[], queues?: { flush(): void }[]): System;
 
 // ── Entity lifecycle hooks (event layer — miniplex native) ──
 export function onEnter<E>(query: Query<E>, cb: (entity: E) => void): Teardown;
@@ -111,7 +127,7 @@ export function createEventQueue<T>(handler: (event: T) => void): EventQueue<T> 
 Accepts optional event queues. Systems run first, then all queues flush. Consumer can't forget to flush or flush in wrong order.
 
 ```typescript
-export function createPipeline(systems: System[], queues?: EventQueue<unknown>[]): System {
+export function createPipeline(systems: System[], queues?: { flush(): void }[]): System {
   return () => {
     for (const system of systems) system();
     if (queues) for (const q of queues) q.flush();
@@ -411,6 +427,34 @@ Frame-rate independent: `engine.getDeltaTime()` returns actual ms since last fra
 +-----+---------------------------+-------------------+
 | 10  | Combo counter (future)    | reactTo            |
 +-----+---------------------------+-------------------+
+```
+
+# Verified Assumptions
+
+Tested with miniplex 2.x, all assertions passed.
+
+```
++-----+===============================================+==========================================+
+| #   | Assumption                                    | What the test proved                     |
++-----+===============================================+==========================================+
+| 1   | world.remove() preserves entity in            | onEntityRemoved callback receives entity |
+|     | onEntityRemoved callback                      | with all components intact. Properties   |
+|     |                                               | still accessible.                        |
++-----+-----------------------------------------------+------------------------------------------+
+| 2   | removeComponent() fires onEntityRemoved       | Callback fires BEFORE the component is   |
+|     | BEFORE stripping the component                | stripped. Entity has the component in the |
+|     |                                               | callback, even though removeComponent    |
+|     |                                               | was called.                              |
++-----+-----------------------------------------------+------------------------------------------+
+| 3   | world.remove() does not mutate the entity     | After removal, entity object still has   |
+|     | object                                        | all its properties. Miniplex removes it  |
+|     |                                               | from query buckets, not from the object. |
++-----+-----------------------------------------------+------------------------------------------+
+| 4   | world.update() does atomic assign + single    | Object.assign sets all properties, then  |
+|     | reindex                                       | single reindex. onEntityAdded callback   |
+|     |                                               | on downstream query sees fully-built     |
+|     |                                               | entity with all new components.          |
++-----+-----------------------------------------------+------------------------------------------+
 ```
 
 # Userland Risks
