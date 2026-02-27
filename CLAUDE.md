@@ -28,11 +28,28 @@ No test runner or linter is configured.
 
 # Architecture
 
-VR Beat Saber clone: Babylon.js (3D/WebXR) + Miniplex (ECS) + MobX (reactive state, reserved for future UI).
+VR Beat Saber clone: Babylon.js (3D/WebXR) + ECS + MobX (reactive state, reserved for future UI).
 
-## ECS Stack (`src/ecs.ts`)
+Two parallel ECS implementations exist for evaluation:
+- `src/game/` — Miniplex-based (original)
+- `src/game-koota/` — Koota-based (spike, may replace Miniplex)
 
-Thin wrappers over Miniplex + MobX. Key primitives:
+## Entry Points
+
+- `index.html` → `src/game/main.ts` — Miniplex game
+- `game-koota.html` → `src/game-koota/main.ts` — Koota game
+- `sandbox-arena.html` → `src/sandbox/arena/main.ts` — Koota learning spike (2D Canvas)
+
+## Shared Modules
+
+- `src/collision.ts` — `segmentDistance()` — robust 3D line-segment closest-distance
+- `src/theme.ts` — `Hand` type alias, `Theme` interface (leftHand/rightHand colors), `handColor()` lookup
+- `src/music-engine.ts` — procedural song generation (seed → deterministic song). Pure data, no audio.
+- `src/ecs.ts` — thin wrappers over Miniplex + MobX (used by `src/game/` only)
+
+## Miniplex ECS Stack (`src/game/`)
+
+Thin wrappers over Miniplex + MobX in `src/ecs.ts`. Key primitives:
 
 - `onEnter(query, cb)` / `onExit(query, cb)` — entity lifecycle hooks (creation/disposal)
 - `state(initial)` / `reactTo(read, effect)` — MobX-backed reactive cells (not yet used in game)
@@ -41,39 +58,58 @@ Thin wrappers over Miniplex + MobX. Key primitives:
 
 All return `Teardown` (cleanup function). Systems are `() => void`.
 
-## Entity Model (`src/game/types.ts`, `src/game/world.ts`)
-
 Single `Entity` type with optional components. Three archetype stages:
 
 1. **Uninitialized controller** — `{ hand, input }` — WebXR controller just connected
 2. **Armed controller** — adds `saber`, `trailMesh`, `trailBuffers` — visual pipeline built geometry
 3. **Active controller** — adds `gripBound: true` — saber parented to grip, systems running
 
-Queries in `world.ts` filter by archetype: `controllers`, `needsGrip`, `activeTrails`, `activeSabers`.
+## Koota ECS Stack (`src/game-koota/`)
 
-## Game Systems
+Direct Koota API, no wrapper layer. Key patterns:
+
+- `trait(() => obj)` — callback traits (AoS) for Babylon.js object references
+- `trait()` — tag traits for entity-kind markers (GripBound)
+- `world.onQueryAdd([...traits], cb)` / `world.onQueryRemove([...traits], cb)` — lifecycle hooks
+- `world.spawn(Trait(value), ...)` — entity creation with initial trait values
+- `entity.destroy()` — cleanup (triggers onQueryRemove hooks)
+- `Not(Trait)` — query modifier for `.without()` equivalent
+- Manual event buffer + system ordering (no pipeline abstraction)
+
+Same archetype stages as Miniplex version. Same game systems, different ECS plumbing.
+
+## Game Systems (both implementations)
 
 Systems run in order inside `scene.onBeforeRenderObservable`:
 
-1. **Visual Pipeline** (`visual-pipeline.ts`) — `onEnter`/`onExit` on controllers query. Creates sabers + trails on connect, disposes on disconnect. Uses `world.update()` for atomic multi-component add.
-2. **Grip Bind** (`grip-bind-system.ts`) — polling system. Parents saber to XR grip, starts trail, adds `gripBound` flag.
-3. **Trail Update** (`trail-update-system.ts`) — shifts 60-sample vertex ribbon, ages samples, updates Babylon vertex buffers directly.
-4. **Collision** (`collision-system.ts`) — segment-distance between saber blades, pushes `CollisionEvent` to queue.
+1. **Visual Pipeline** — lifecycle hooks on controllers query. Creates sabers + trails on connect, disposes on disconnect.
+2. **Grip Bind** — polling system. Parents saber to XR grip, starts trail, adds gripBound flag.
+3. **Trail Update** — shifts 60-sample vertex ribbon, ages samples, updates Babylon vertex buffers directly.
+4. **Collision** — segment-distance between saber blades, pushes collision event to buffer.
 5. **Beat Decay** (inside `environment.ts`) — decays `beatFlash` for fog/pillar pulse. Frame-rate independent via `getDeltaTime()`.
 
-## Bootstrap (`src/game/main.ts`)
+## Bootstrap
 
-`startGame(canvas)` creates engine → scene → camera → environment → WebXR → systems → pipeline → input bridge → render loop.
+`startGame(canvas)` / `main()` creates engine → scene → camera → environment → WebXR → systems → pipeline → input bridge → render loop.
 
 ## Conventions
 
 - **`dispose(false, true)`**: Disposes node + materials + textures for full cleanup.
 - **Trail mesh**: 120 vertices (60 samples × 2), mutable Float32Array buffers updated via `updateVerticesData`.
-- **Collision geometry**: `segmentDistance()` in `src/collision.ts` — robust 3D line-segment closest-distance.
-- **Theme**: `src/theme.ts` defines `Hand` type alias, `Theme` interface (leftHand/rightHand colors), `handColor()` lookup.
+- **Theme**: `src/theme.ts` defines `Hand` type alias, `Theme` interface, `handColor()` lookup.
+
+## Sandboxes (`src/sandbox/`)
+
+Small standalone games for learning ECS concepts:
+
+- `arena/` — Koota learning spike. Top-down survival shooter (Canvas2D, dark theme). See `docs/spikes/arena/arena-design.md`.
+- `guard-the-gate/` — Miniplex learning spike. 2D tower defense (SVG). See `docs/spikes/ecs-sandbox/`.
 
 ## Key Dependencies
 
 - `@babylonjs/core`, `@babylonjs/loaders` — 3D engine + WebXR
-- `miniplex` — entity-component storage with typed queries
+- `koota` — ECS (spike, evaluating as Miniplex replacement)
+- `miniplex` — ECS (original)
 - `mobx` — reactive state (future UI layer)
+- `planck` — 2D physics / Vec2 math (sandboxes)
+- `tone`, `tonal` — audio synthesis + music theory
