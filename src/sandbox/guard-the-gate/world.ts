@@ -12,8 +12,14 @@ export const particles = world.with('particle', 'position', 'lifetime', 'sprite'
 
 // ── Polling system queries ──────────────────────────────────────────
 
-/** All moving entities — movement system. */
-export const movables = world.with('position', 'velocity');
+/** Movable entities excluding frozen — movement system. */
+export const activeMovables = world.with('position', 'velocity').without('frozen');
+
+/** All entities with visuals — render position sync. */
+export const renderables = world.with('position', 'sprite');
+
+/** Turret entity — input bridge updates aim. */
+export const turrets = world.with('turret', 'aimAngle');
 
 /** Living enemies — bullet collision targets. */
 export const livingEnemies = world.with('enemy', 'position', 'health');
