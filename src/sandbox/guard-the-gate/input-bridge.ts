@@ -9,7 +9,7 @@ import { type Teardown } from '../../ecs';
 import { type Position } from './types';
 import { type CollectEvent } from './events';
 import { world, turrets, hoveredPowerUps } from './world';
-import { CANVAS_WIDTH, BULLET_SPEED, BULLET_DAMAGE, TURRET_Y } from './data';
+import { CANVAS_WIDTH, BULLET_SPEED, BULLET_DAMAGE } from './data';
 
 // ── Mouse state (module-level, read by hover system) ────────────────
 
@@ -25,8 +25,6 @@ export function bridgeInput(
   container: HTMLElement,
   onCollect: (event: CollectEvent) => void,
 ): Teardown {
-  const rect = container.getBoundingClientRect;
-
   function onMouseMove(e: MouseEvent): void {
     const r = container.getBoundingClientRect();
     mousePos.x = e.clientX - r.left;
@@ -67,8 +65,6 @@ export function bridgeInput(
 
   container.addEventListener('mousemove', onMouseMove);
   container.addEventListener('click', onClick);
-
-  void rect;
 
   return () => {
     container.removeEventListener('mousemove', onMouseMove);

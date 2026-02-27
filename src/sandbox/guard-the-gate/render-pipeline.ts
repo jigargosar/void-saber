@@ -9,7 +9,8 @@
 import { type Teardown, type System, onEnter, onExit } from '../../ecs';
 import { type Entity } from './types';
 import {
-  enemies, bullets, powerUps, particles,
+  world,
+  enemySpawns, bulletSpawns, powerUpSpawns, particleSpawns,
   hoveredPowerUps, frozenEnemies, renderables,
 } from './world';
 import { ENEMY_TYPES, POWER_UP_TYPES } from './data';
@@ -49,7 +50,7 @@ function createSvgSprite(size: number, color: string, shape: 'rect' | 'circle'):
 
 function attachSprite(entity: Entity, el: HTMLDivElement, container: HTMLElement): void {
   container.appendChild(el);
-  entity.sprite = { el };
+  world.addComponent(entity, 'sprite', { el });
 }
 
 function removeSprite(entity: Entity): void {
@@ -64,7 +65,7 @@ export function createRenderPipeline(container: HTMLElement): { teardown: Teardo
   const teardowns: Teardown[] = [];
 
   // 5.1 — onEnter enemies: create sprite
-  teardowns.push(onEnter(enemies, (entity) => {
+  teardowns.push(onEnter(enemySpawns, (entity) => {
     const def = ENEMY_TYPES.get(entity.enemyType ?? 'grunt');
     const size = def?.size ?? 20;
     const color = def?.color ?? '#e74c3c';
@@ -73,18 +74,18 @@ export function createRenderPipeline(container: HTMLElement): { teardown: Teardo
   }));
 
   // 5.2 — onExit enemies: remove sprite
-  teardowns.push(onExit(enemies, (entity) => {
+  teardowns.push(onExit(enemySpawns, (entity) => {
     removeSprite(entity);
   }));
 
   // 5.3 — onEnter bullets: create sprite
-  teardowns.push(onEnter(bullets, (entity) => {
+  teardowns.push(onEnter(bulletSpawns, (entity) => {
     const el = createSvgSprite(8, '#ffffff', 'circle');
     attachSprite(entity, el, container);
   }));
 
   // 5.4 — onExit bullets: remove sprite
-  teardowns.push(onExit(bullets, (entity) => {
+  teardowns.push(onExit(bulletSpawns, (entity) => {
     removeSprite(entity);
   }));
 
@@ -117,7 +118,7 @@ export function createRenderPipeline(container: HTMLElement): { teardown: Teardo
   }));
 
   // onEnter powerUps: create sprite
-  teardowns.push(onEnter(powerUps, (entity) => {
+  teardowns.push(onEnter(powerUpSpawns, (entity) => {
     const def = POWER_UP_TYPES.get(entity.powerUpType ?? 'heal');
     const color = def?.color ?? '#2ecc71';
     const el = createSvgSprite(16, color, 'circle');
@@ -125,19 +126,19 @@ export function createRenderPipeline(container: HTMLElement): { teardown: Teardo
   }));
 
   // onExit powerUps: remove sprite
-  teardowns.push(onExit(powerUps, (entity) => {
+  teardowns.push(onExit(powerUpSpawns, (entity) => {
     removeSprite(entity);
   }));
 
   // onEnter particles: create sprite
-  teardowns.push(onEnter(particles, (entity) => {
+  teardowns.push(onEnter(particleSpawns, (entity) => {
     const el = createSvgSprite(4, '#ffcc00', 'circle');
     el.style.opacity = '0.8';
     attachSprite(entity, el, container);
   }));
 
   // onExit particles: remove sprite
-  teardowns.push(onExit(particles, (entity) => {
+  teardowns.push(onExit(particleSpawns, (entity) => {
     removeSprite(entity);
   }));
 

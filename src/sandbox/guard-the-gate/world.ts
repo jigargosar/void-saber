@@ -3,12 +3,12 @@ import { type Entity } from './types';
 
 export const world = new World<Entity>();
 
-// ── Entity-kind queries (for lifecycle: onEnter/onExit) ─────────────
+// ── Lifecycle queries (onEnter creates sprite, onExit cleans up) ─────
 
-export const enemies   = world.with('enemy', 'position', 'health', 'sprite');
-export const bullets   = world.with('bullet', 'position', 'sprite');
-export const powerUps  = world.with('powerUp', 'position', 'sprite');
-export const particles = world.with('particle', 'position', 'lifetime', 'sprite');
+export const enemySpawns    = world.with('enemy', 'position', 'health');
+export const bulletSpawns   = world.with('bullet', 'position');
+export const powerUpSpawns  = world.with('powerUp', 'position');
+export const particleSpawns = world.with('particle', 'position', 'lifetime');
 
 // ── Polling system queries ──────────────────────────────────────────
 
@@ -18,8 +18,8 @@ export const activeMovables = world.with('position', 'velocity').without('frozen
 /** All entities with visuals — render position sync. */
 export const renderables = world.with('position', 'sprite');
 
-/** Turret entity — input bridge updates aim. */
-export const turrets = world.with('turret', 'aimAngle');
+/** Turret entity — input bridge updates aim, render syncs rotation. */
+export const turrets = world.with('turret', 'aimAngle', 'position');
 
 /** Living enemies — bullet collision targets. */
 export const livingEnemies = world.with('enemy', 'position', 'health');
