@@ -19,6 +19,7 @@
     "miniplex": "^2.0.0",
     "mobx": "^6.15.0",
     "mobx-utils": "^6.1.1",
+    "planck": "^1.4.3",
     "statery": "^0.7.1",
     "tailwindcss": "^4.2.1",
     "tonal": "^6.4.3",
