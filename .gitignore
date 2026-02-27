@@ -19,6 +19,9 @@ dist
 .parcel-cache
 *.tsbuildinfo
 
+# Reference repos (re-clone as needed)
+docs/reference/bitECS
+
 # Elm
 elm-stuff
 *.local.json
