@@ -17,6 +17,9 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4.2.1
         version: 4.2.1
+      koota:
+        specifier: ^0.6.5
+        version: 0.6.5
       miniplex:
         specifier: ^2.0.0
         version: 2.0.0
@@ -609,6 +612,17 @@ packages:
   jiti@2.6.1:
     resolution: {integrity: sha512-ekilCSN1jwRvIbgeg/57YFh8qQDNbwDb9xT/qu2DAHbFFZUicIl4ygVaAvzveMhMVr3LnpSKTNnwt8PoOfmKhQ==}
     hasBin: true
+
+  koota@0.6.5:
+    resolution: {integrity: sha512-FW4UVvYq0KP9/vv4K4Q0beHlDy6LLD2BMLgEqfM+0hcKhfJ5/TNqf1TbwdQxxL1+oNmALd168VltDdO7g/7cgA==}
+    peerDependencies:
+      '@types/react': '>=18.0.0'
+      react: '>=18.0.0'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      react:
+        optional: true
 
   lightningcss-android-arm64@1.31.1:
     resolution: {integrity: sha512-HXJF3x8w9nQ4jbXRiNppBCqeZPIAfUo8zE/kOEGbW5NZvGc/K7nMxbhIr+YlFlHW5mpbg/YFPdbnCh1wAXCKFg==}
@@ -1289,6 +1303,8 @@ snapshots:
   graceful-fs@4.2.11: {}
 
   jiti@2.6.1: {}
+
+  koota@0.6.5: {}
 
   lightningcss-android-arm64@1.31.1:
     optional: true

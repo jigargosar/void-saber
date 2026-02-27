@@ -17,7 +17,7 @@ Locked Increments
 +-----+==========================+===============================================+
 | 1   | Flying player            | trait (schema), trait (callback), world.spawn, |
 |     | WASD movement            | query().updateEach, world trait (Time),        |
-|     | dark canvas              | defineQuery                                    |
+|     | dark canvas              | createQuery                                    |
 +-----+--------------------------+-----------------------------------------------+
 | 2   | Shoot toward mouse       | trait() tag, entity.destroy(), spawn           |
 |     | bullets despawn          | dynamically, lifetime                          |
@@ -52,7 +52,7 @@ Koota Feature Coverage
 +-----+------------------------------------+-------------+
 | 6   | world.query().updateEach           | 1           |
 +-----+------------------------------------+-------------+
-| 7   | defineQuery()      cached          | 1           |
+| 7   | createQuery()      cached          | 1           |
 +-----+------------------------------------+-------------+
 | 8   | Not()              modifier        | 3           |
 +-----+------------------------------------+-------------+

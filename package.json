@@ -16,6 +16,7 @@
     "@babylonjs/core": "^8.52.1",
     "@babylonjs/loaders": "^8.52.1",
     "@tailwindcss/postcss": "^4.2.1",
+    "koota": "^0.6.5",
     "miniplex": "^2.0.0",
     "mobx": "^6.15.0",
     "mobx-utils": "^6.1.1",
