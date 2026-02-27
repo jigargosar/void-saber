@@ -4,14 +4,13 @@
  * Based on src/ecs.ts (Miniplex + MobX wiring utilities).
  * Additions over the original:
  *   - createWorld            (Issue 3  — Readonly<E> prevents direct mutation)
- *   - createLifecycleHook   (Issues 2, 4 — circular queries, re-index in callback)
  *   - safeRemove            (Issue 5  — double-remove undefined behavior)
  *   - createTeardownCollector (Issue 9 — leaked resources)
- *   - onEnter/onExit removed (redundant — createLifecycleHook covers all use cases)
+ *   - onEnter/onExit removed (use query.onEntityAdded.subscribe directly)
  *
  * See docs/spikes/space-rocks/design.md for why each fix exists.
  */
-import { World, type Query } from 'miniplex';
+import { World } from 'miniplex';
 import { observable, reaction } from 'mobx';
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -40,66 +39,6 @@ export type Teardown = () => void;
  */
 export function createWorld<E extends {}>(): World<Readonly<E>> {
   return new World<Readonly<E>>();
-}
-
-// ── Lifecycle Hook (fixes Issues 2, 4) ────────────────────────────
-
-/**
- * Creates a lifecycle hook that safely adds components on entity enter
- * and runs cleanup on entity exit.
- *
- * RULE: The trigger query must NOT include components that onEnter creates.
- * This prevents circular deadlocks where an entity can never enter the
- * query because the component it needs is created by the handler that
- * requires the entity to already be in the query.
- *
- * The onEnter callback receives an `add` helper that calls
- * world.addComponent internally (verified safe in callbacks — all
- * Miniplex checks are idempotent). The API shape naturally separates
- * trigger components from built components.
- *
- * @example
- * ```ts
- * const enemySpawns = world.with('enemy', 'position', 'health');
- *
- * createLifecycleHook(world, enemySpawns, {
- *   onEnter: (entity, add) => {
- *     const el = createSprite(entity);
- *     add('sprite', { el });
- *   },
- *   onExit: (entity) => {
- *     entity.sprite?.el.remove();
- *   },
- * });
- * ```
- */
-export function createLifecycleHook<E extends {}>(
-  world: World<E>,
-  triggerQuery: Query<E>,
-  hooks: {
-    onEnter?: (
-      entity: E,
-      add: <K extends keyof E>(component: K, value: E[K]) => void,
-    ) => void;
-    onExit?: (entity: E) => void;
-  },
-): Teardown {
-  const teardowns: Teardown[] = [];
-
-  if (hooks.onEnter) {
-    const enterCb = hooks.onEnter;
-    teardowns.push(triggerQuery.onEntityAdded.subscribe((entity: E) => {
-      enterCb(entity, (component, value) => {
-        world.addComponent(entity, component, value);
-      });
-    }));
-  }
-
-  if (hooks.onExit) {
-    teardowns.push(triggerQuery.onEntityRemoved.subscribe(hooks.onExit));
-  }
-
-  return () => { for (const t of teardowns) t(); };
 }
 
 // ── Safe Remove (fixes Issue 5) ───────────────────────────────────
@@ -194,7 +133,7 @@ export interface TeardownCollector {
  * @example
  * ```ts
  * const collector = createTeardownCollector();
- * collector.add(createLifecycleHook(world, query, hooks));
+ * collector.add(query.onEntityAdded.subscribe(handler));
  * collector.add(createEventQueue(handler).dispose);
  * collector.add(bridgeKeyboard(canvas, world));
  * // ...later:

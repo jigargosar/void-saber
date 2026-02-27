@@ -38,19 +38,9 @@ See: `docs/spikes/ecs-sandbox/ecs-sandbox-report.md` for full findings.
 +-----+======================================+========================================+
 | #   | Issue                                | Fix Applied                            |
 +-----+======================================+========================================+
-| 2   | Circular lifecycle query deadlock    | createLifecycleHook separates trigger  |
-|     | — sprite required in query, but      | keys from built components. Builder    |
-|     | sprite created by the onEnter that   | callback returns components to add;    |
-|     | needs the query to fire              | framework calls addComponent after     |
-+-----+--------------------------------------+----------------------------------------+
 | 3   | Direct property mutation bypasses    | createWorld<E>() wraps entity type in  |
 |     | Miniplex indexing — entity.sprite=x  | Readonly<E>. Assignment and deletion   |
 |     | compiles but breaks queries          | are compile errors automatically       |
-+-----+--------------------------------------+----------------------------------------+
-| 4   | addComponent inside onEnter triggers  | Verified safe by reading Miniplex      |
-|     | re-indexing during notification       | source — all checks are idempotent.    |
-|     | cycle — unknown if safe              | createLifecycleHook uses addComponent  |
-|     |                                      | internally via the add helper          |
 +-----+--------------------------------------+----------------------------------------+
 | 5   | Double-remove on same entity has     | safeRemove wrapper checks world.has()  |
 |     | unknown behavior in Miniplex         | before calling world.remove(). No-ops  |
@@ -59,6 +49,23 @@ See: `docs/spikes/ecs-sandbox/ecs-sandbox-report.md` for full findings.
 | 9   | No teardown orchestration — all      | createTeardownCollector gathers all    |
 |     | cleanup functions captured but       | teardowns. Single shutdown() call      |
 |     | never called                         | runs them in reverse order (LIFO)      |
++-----+--------------------------------------+----------------------------------------+
+```
+
+### Documented as Gotcha (knowledge, not framework fix)
+
+```
++-----+======================================+========================================+
+| #   | Issue                                | Resolution                             |
++-----+======================================+========================================+
+| 2   | Circular lifecycle query deadlock    | Documented in ecs-guide.md. Trigger    |
+|     | — sprite required in query, but      | query must only include components     |
+|     | sprite created by the callback that  | that exist at entity creation time.    |
+|     | needs the query to fire              | Callback adds the rest                 |
++-----+--------------------------------------+----------------------------------------+
+| 4   | addComponent inside onEntityAdded    | Verified safe by reading Miniplex      |
+|     | triggers re-indexing during          | source — all checks are idempotent.    |
+|     | notification cycle                   | Documented in ecs-guide.md             |
 +-----+--------------------------------------+----------------------------------------+
 ```
 
@@ -99,8 +106,7 @@ correctly from the start.
 A modified copy of `src/ecs.ts`. Unsafe functions removed, safe
 alternatives added.
 
-Removed: `onEnter`, `onExit` (redundant — createLifecycleHook covers
-all use cases including side-effect-only reactions).
+Removed: `onEnter`, `onExit` (use `query.onEntityAdded.subscribe` directly).
 Removed: `World` as value export (use `createWorld` instead).
 
 ### 1. createWorld
@@ -120,31 +126,7 @@ on returned entities are readonly:
 
 Prevents: Issue 3 (direct mutation bypassing Miniplex indexing).
 
-### 2. createLifecycleHook
-
-Subscribe to entity lifecycle events with a typed `add` helper.
-
-```typescript
-createLifecycleHook(world, enemySpawns, {
-  onEnter: (entity, add) => {
-    const el = createSprite(entity);
-    add('sprite', { el });
-  },
-  onExit: (entity) => {
-    entity.sprite?.el.remove();
-  },
-});
-```
-
-The `add` helper calls `world.addComponent` internally (verified safe
-in callbacks — all Miniplex checks are idempotent). The API shape
-naturally separates trigger components from built components, preventing
-circular query deadlocks.
-
-Prevents: Issue 2 (circular queries). Issue 4 is resolved — addComponent
-in callbacks is verified safe.
-
-### 3. safeRemove
+### 2. safeRemove
 
 ```typescript
 safeRemove(world, entity); // no-ops if entity already removed
@@ -154,11 +136,11 @@ Returns `true` if removal happened, `false` if entity wasn't in world.
 
 Prevents: Issue 5 (double-remove undefined behavior).
 
-### 4. createTeardownCollector
+### 3. createTeardownCollector
 
 ```typescript
 const collector = createTeardownCollector();
-collector.add(createLifecycleHook(...));
+collector.add(query.onEntityAdded.subscribe(handler));
 collector.add(createEventQueue(...).dispose);
 collector.add(bridgeKeyboard(...));
 // ...
@@ -218,19 +200,19 @@ moving to the next phase. The "Study" section tells you what to read in
 | #   | Aspect       | Detail                                         |
 +-----+==============+================================================+
 | 1   | You learn    | Entity lifecycle (onEntityAdded /               |
-|     |              | onEntityRemoved), Teardown, createLifecycleHook |
+|     |              | onEntityRemoved), Teardown                      |
 +-----+--------------+------------------------------------------------+
-| 2   | You build    | Lifecycle hook: when entity enters spawn query, |
-|     |              | create DOM sprite via add('sprite', ...).       |
-|     |              | When entity exits, remove sprite from DOM.      |
+| 2   | You build    | query.onEntityAdded: when entity enters spawn   |
+|     |              | query, create DOM sprite via addComponent.      |
+|     |              | query.onEntityRemoved: remove sprite from DOM.  |
 |     |              | Render sync system: positions → CSS transforms  |
 +-----+--------------+------------------------------------------------+
-| 3   | Study first  | ecs.ts: createLifecycleHook                    |
+| 3   | Study first  | ecs-guide.md: Circular Query Deadlock gotcha    |
 |     |              | Understand why trigger query must NOT include   |
-|     |              | components the builder creates (Gotcha 1)       |
+|     |              | components the callback creates                 |
 +-----+--------------+------------------------------------------------+
-| 4   | Framework    | createLifecycleHook — this is where it matters |
-|     | fix relevant | (prevents Issue 2 + 4)                         |
+| 4   | Framework    | None — use Miniplex subscribe directly.         |
+|     | fix relevant | Know the gotcha (ecs-guide.md)                  |
 +-----+--------------+------------------------------------------------+
 | 5   | Files        | render-pipeline.ts                             |
 +-----+--------------+------------------------------------------------+
@@ -355,7 +337,8 @@ callback that requires the entity to already be in the query.
 No error, no warning. Silent deadlock.
 
 Fix: the trigger query must only include components that exist at
-entity creation time. The callback adds the rest.
+entity creation time. The callback adds the rest via
+`world.addComponent`. See ecs-guide.md for examples.
 
 **Gotcha 2 — `world.remove` inside callbacks**
 Calling `world.remove(entity)` inside an `onEntityAdded` callback for
@@ -389,7 +372,7 @@ any callback.
 
 ### Prevention Rules
 
-1. Never assign a component directly — always `world.addComponent` or lifecycle `add` helper
+1. Never assign a component directly — always `world.addComponent`
 2. Never `delete` a component — always `world.removeComponent`
 3. Never call `world.remove` directly — always `safeRemove`
 4. Never call `world.remove` inside a lifecycle callback for the entity being processed

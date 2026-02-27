@@ -31,3 +31,37 @@ GOOD:  enemy?: true                  — tag for query matching
 ```
 
 Source: Guard the Gate Issue 1.
+
+
+## Gotchas
+
+### Circular Query Deadlock
+
+If a query requires component X, and the `onEntityAdded` callback for
+that query creates X, the callback never fires. Silent deadlock.
+
+```typescript
+// BAD — deadlock: query requires 'sprite', callback creates 'sprite'
+const enemies = world.with('enemy', 'position', 'sprite');
+enemies.onEntityAdded.subscribe((entity) => {
+  world.addComponent(entity, 'sprite', { el: createDiv() });
+});
+world.add({ enemy: true, position: { x: 0, y: 0 } });
+// entity never enters query → callback never fires → sprite never added
+```
+
+```typescript
+// GOOD — trigger query has only components present at creation time
+const enemySpawns = world.with('enemy', 'position');
+enemySpawns.onEntityAdded.subscribe((entity) => {
+  world.addComponent(entity, 'sprite', { el: createDiv() });
+});
+world.add({ enemy: true, position: { x: 0, y: 0 } });
+// entity enters query → callback fires → sprite added
+```
+
+Rule: the trigger query must only include components that exist at
+entity creation time. The callback adds the rest via
+`world.addComponent` (verified safe inside callbacks).
+
+Source: Guard the Gate Issue 2.
