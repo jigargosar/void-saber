@@ -65,3 +65,16 @@ entity creation time. The callback adds the rest via
 `world.addComponent` (verified safe inside callbacks).
 
 Source: Guard the Gate Issue 2.
+
+
+### Double-Remove Is Safe
+
+Calling `world.remove(entity)` on an already-removed entity is a
+no-op. Miniplex's `Bucket.remove` checks `has(entity)` before acting.
+No corruption, no errors, no wrapper needed.
+
+Verified by testing: removed same entity 3 times in sequence — world
+size, query membership, and lifecycle events all remained correct.
+Only the first remove fires `onEntityRemoved`.
+
+Source: Guard the Gate Issue 5.

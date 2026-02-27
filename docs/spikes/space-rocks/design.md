@@ -42,10 +42,6 @@ See: `docs/spikes/ecs-sandbox/ecs-sandbox-report.md` for full findings.
 |     | Miniplex indexing — entity.sprite=x  | Readonly<E>. Assignment and deletion   |
 |     | compiles but breaks queries          | are compile errors automatically       |
 +-----+--------------------------------------+----------------------------------------+
-| 5   | Double-remove on same entity has     | safeRemove wrapper checks world.has()  |
-|     | unknown behavior in Miniplex         | before calling world.remove(). No-ops  |
-|     |                                      | on already-removed entities            |
-+-----+--------------------------------------+----------------------------------------+
 | 9   | No teardown orchestration — all      | createTeardownCollector gathers all    |
 |     | cleanup functions captured but       | teardowns. Single shutdown() call      |
 |     | never called                         | runs them in reverse order (LIFO)      |
@@ -66,6 +62,11 @@ See: `docs/spikes/ecs-sandbox/ecs-sandbox-report.md` for full findings.
 | 4   | addComponent inside onEntityAdded    | Verified safe by reading Miniplex      |
 |     | triggers re-indexing during          | source — all checks are idempotent.    |
 |     | notification cycle                   | Documented in ecs-guide.md             |
++-----+--------------------------------------+----------------------------------------+
+| 5   | Double-remove on same entity         | Verified safe by testing. Bucket.remove |
+|     |                                      | checks has(entity) before acting.      |
+|     |                                      | Double-remove is a no-op. No wrapper   |
+|     |                                      | needed                                 |
 +-----+--------------------------------------+----------------------------------------+
 ```
 
@@ -126,17 +127,7 @@ on returned entities are readonly:
 
 Prevents: Issue 3 (direct mutation bypassing Miniplex indexing).
 
-### 2. safeRemove
-
-```typescript
-safeRemove(world, entity); // no-ops if entity already removed
-```
-
-Returns `true` if removal happened, `false` if entity wasn't in world.
-
-Prevents: Issue 5 (double-remove undefined behavior).
-
-### 3. createTeardownCollector
+### 2. createTeardownCollector
 
 ```typescript
 const collector = createTeardownCollector();
@@ -253,17 +244,16 @@ moving to the next phase. The "Study" section tells you what to read in
 | 2   | You build    | Bullet entities with lifetime. Collision system |
 |     |              | detects bullet-vs-rock (distance check), pushes |
 |     |              | DamageEvent to queue. Handler: reduce rock     |
-|     |              | health, safeRemove dead rocks, split into      |
+|     |              | health, world.remove dead rocks, split into    |
 |     |              | smaller rocks. Lifetime system removes expired  |
 |     |              | bullets                                        |
 +-----+--------------+------------------------------------------------+
 | 3   | Study first  | ecs.ts: createEventQueue (push, flush, dispose) |
 |     |              | Pipeline: systems run first, queues flush after |
-|     |              | Understand Issue 5 (double-remove) and why     |
-|     |              | safeRemove exists                              |
+|     |              | ecs-guide.md: double-remove is safe (no-op)    |
 +-----+--------------+------------------------------------------------+
-| 4   | Framework    | safeRemove — prevents double-remove (Issue 5)  |
-|     | fix relevant |                                                |
+| 4   | Framework    | None — world.remove is already idempotent.     |
+|     | fix relevant | Know the gotcha (ecs-guide.md)                 |
 +-----+--------------+------------------------------------------------+
 | 5   | Files        | bullet-system.ts, collision-system.ts,         |
 |     |              | lifetime-system.ts, events.ts                  |
@@ -311,7 +301,7 @@ from them.
 
 **Rule A — Component SLOTS are immutable (managed by Miniplex)**
 Adding, replacing, or removing a component slot must go through
-`world.addComponent` / `world.removeComponent` / `safeRemove`.
+`world.addComponent` / `world.removeComponent` / `world.remove`.
 Direct assignment (`entity.sprite = x`) and deletion
 (`delete entity.sprite`) bypass Miniplex indexing — queries go stale,
 lifecycle hooks don't fire. Silent corruption.
@@ -374,10 +364,9 @@ any callback.
 
 1. Never assign a component directly — always `world.addComponent`
 2. Never `delete` a component — always `world.removeComponent`
-3. Never call `world.remove` directly — always `safeRemove`
-4. Never call `world.remove` inside a lifecycle callback for the entity being processed
-5. Input bridges translate events only — no game queries, no game decisions
-6. Game logic never reads render layer (DOM sizes, CSS values, element positions)
-7. Every component a system reads must be guaranteed by its query — no runtime guards
-8. Component changes take effect next frame — accept one-frame delay
-9. Every setup function's teardown must be registered with the collector
+3. Never call `world.remove` inside a lifecycle callback for the entity being processed
+4. Input bridges translate events only — no game queries, no game decisions
+5. Game logic never reads render layer (DOM sizes, CSS values, element positions)
+6. Every component a system reads must be guaranteed by its query — no runtime guards
+7. Component changes take effect next frame — accept one-frame delay
+8. Every setup function's teardown must be registered with the collector

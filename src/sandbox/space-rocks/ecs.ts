@@ -4,7 +4,6 @@
  * Based on src/ecs.ts (Miniplex + MobX wiring utilities).
  * Additions over the original:
  *   - createWorld            (Issue 3  — Readonly<E> prevents direct mutation)
- *   - safeRemove            (Issue 5  — double-remove undefined behavior)
  *   - createTeardownCollector (Issue 9 — leaked resources)
  *   - onEnter/onExit removed (use query.onEntityAdded.subscribe directly)
  *
@@ -39,21 +38,6 @@ export type Teardown = () => void;
  */
 export function createWorld<E extends {}>(): World<Readonly<E>> {
   return new World<Readonly<E>>();
-}
-
-// ── Safe Remove (fixes Issue 5) ───────────────────────────────────
-
-/**
- * Removes an entity from the world if it is still present. No-ops if
- * the entity was already removed. Returns whether removal happened.
- *
- * Use this instead of world.remove() to prevent double-remove bugs
- * (e.g. two bullets hitting the same enemy in one frame).
- */
-export function safeRemove<E extends object>(world: World<E>, entity: E): boolean {
-  if (!world.has(entity)) return false;
-  world.remove(entity);
-  return true;
 }
 
 // ── Reactive state (reaction layer — MobX) ────────────────────────
