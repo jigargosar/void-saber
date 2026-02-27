@@ -78,3 +78,34 @@ size, query membership, and lifecycle events all remained correct.
 Only the first remove fires `onEntityRemoved`.
 
 Source: Guard the Gate Issue 5.
+
+
+### Mid-Frame Component Changes
+
+Systems run in sequence. When system A adds or removes a component,
+system B (later in the pipeline) sees the change immediately — in the
+same frame. But system A's own earlier iterations already ran without
+it.
+
+```
+Frame N pipeline: [Movement] → [Freeze] → [Collision]
+
+Movement runs: iterates all unfrozen enemies, moves them.
+Freeze runs:   adds 'frozen' to enemy #3.
+Collision runs: sees enemy #3 as frozen (correct).
+
+But Movement already moved enemy #3 this frame (incorrect —
+it should have been frozen before moving).
+```
+
+This is inherent to sequential polling systems — not a bug. There are
+two ways to handle it:
+
+1. Command buffer — queue all component changes, apply between frames.
+   Every system sees the same snapshot. Heavy framework change.
+2. Accept one-frame delay — freeze takes effect next frame. Simple.
+
+Convention: option 2. One-frame delay is acceptable. Don't add command
+buffers for this scale of project.
+
+Source: Guard the Gate Issue 10.
