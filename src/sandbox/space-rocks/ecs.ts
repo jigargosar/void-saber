@@ -3,9 +3,11 @@
  *
  * Based on src/ecs.ts (Miniplex + MobX wiring utilities).
  * Additions over the original:
- *   - createLifecycleHook  (Issues 2, 4 — circular queries, re-index in callback)
- *   - safeRemove           (Issue 5  — double-remove undefined behavior)
+ *   - createWorld            (Issue 3  — Readonly<E> prevents direct mutation)
+ *   - createLifecycleHook   (Issues 2, 4 — circular queries, re-index in callback)
+ *   - safeRemove            (Issue 5  — double-remove undefined behavior)
  *   - createTeardownCollector (Issue 9 — leaked resources)
+ *   - onEnter/onExit removed (redundant — createLifecycleHook covers all use cases)
  *
  * See docs/spikes/space-rocks/design.md for why each fix exists.
  */
@@ -20,28 +22,24 @@ export type System = () => void;
 /** Disposer returned by lifecycle/event setup for teardown. */
 export type Teardown = () => void;
 
-// ── Entity lifecycle hooks (event layer — miniplex native) ────────
+// ── World Factory (fixes Issue 3) ─────────────────────────────────
 
 /**
- * Fires callback once per entity entering the query.
- * Returns a teardown to unsubscribe.
+ * Creates a Miniplex world with Readonly<E> as the entity type.
  *
- * Prefer createLifecycleHook when the callback needs to add components.
- * Use raw onEnter only for side-effect-only reactions (e.g. logging).
- */
-export function onEnter<E>(query: Query<E>, cb: (entity: E) => void): Teardown {
-  return query.onEntityAdded.subscribe(cb);
-}
-
-/**
- * Fires callback once per entity leaving the query.
- * Miniplex preserves entity intact in the callback.
- * Returns a teardown to unsubscribe.
+ * This means all component keys on returned entities are readonly.
+ * Direct assignment (`entity.sprite = x`) and deletion
+ * (`delete entity.sprite`) are compile errors. Only
+ * `world.addComponent` / `world.removeComponent` can change slots.
  *
- * Prefer createLifecycleHook when paired with onEnter that adds components.
+ * Component internals remain mutable (`entity.position.x += 10`)
+ * because Readonly is shallow — systems need to update values.
+ *
+ * The Entity type you pass does NOT need readonly annotations.
+ * The world wraps it for you.
  */
-export function onExit<E>(query: Query<E>, cb: (entity: E) => void): Teardown {
-  return query.onEntityRemoved.subscribe(cb);
+export function createWorld<E extends {}>(): World<Readonly<E>> {
+  return new World<Readonly<E>>();
 }
 
 // ── Lifecycle Hook (fixes Issues 2, 4) ────────────────────────────
@@ -56,8 +54,9 @@ export function onExit<E>(query: Query<E>, cb: (entity: E) => void): Teardown {
  * requires the entity to already be in the query.
  *
  * The onEnter callback receives an `add` helper that calls
- * world.addComponent internally. The consumer never calls addComponent
- * inside a lifecycle callback — the framework handles it.
+ * world.addComponent internally (verified safe in callbacks — all
+ * Miniplex checks are idempotent). The API shape naturally separates
+ * trigger components from built components.
  *
  * @example
  * ```ts
@@ -213,7 +212,7 @@ export function createTeardownCollector(): TeardownCollector {
   };
 }
 
-// ── Re-exports for convenience ─────────────────────────────────────
+// ── Re-exports (types only — use createWorld, not new World) ──────
 
-export { World, type Query };
+export type { World, Query } from 'miniplex';
 export type { With, Without } from 'miniplex';

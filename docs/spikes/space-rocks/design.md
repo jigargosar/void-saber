@@ -43,14 +43,14 @@ See: `docs/spikes/ecs-sandbox/ecs-sandbox-report.md` for full findings.
 |     | sprite created by the onEnter that   | callback returns components to add;    |
 |     | needs the query to fire              | framework calls addComponent after     |
 +-----+--------------------------------------+----------------------------------------+
-| 3   | Direct property mutation bypasses    | Entity type uses readonly keys.        |
-|     | Miniplex indexing — entity.sprite=x  | entity.sprite = x is a compile error.  |
-|     | compiles but breaks queries          | Only world.addComponent can set them   |
+| 3   | Direct property mutation bypasses    | createWorld<E>() wraps entity type in  |
+|     | Miniplex indexing — entity.sprite=x  | Readonly<E>. Assignment and deletion   |
+|     | compiles but breaks queries          | are compile errors automatically       |
 +-----+--------------------------------------+----------------------------------------+
-| 4   | addComponent inside onEnter triggers  | createLifecycleHook returns components |
-|     | re-indexing during notification       | from builder. Framework applies them.  |
-|     | cycle — unknown if safe              | Consumer never calls addComponent in   |
-|     |                                      | a callback                             |
+| 4   | addComponent inside onEnter triggers  | Verified safe by reading Miniplex      |
+|     | re-indexing during notification       | source — all checks are idempotent.    |
+|     | cycle — unknown if safe              | createLifecycleHook uses addComponent  |
+|     |                                      | internally via the add helper          |
 +-----+--------------------------------------+----------------------------------------+
 | 5   | Double-remove on same entity has     | safeRemove wrapper checks world.has()  |
 |     | unknown behavior in Miniplex         | before calling world.remove(). No-ops  |
@@ -96,12 +96,33 @@ correctly from the start.
 
 ## Framework Changes — `src/sandbox/space-rocks/ecs.ts`
 
-A modified copy of `src/ecs.ts`. All original functions preserved.
-Four additions:
+A modified copy of `src/ecs.ts`. Unsafe functions removed, safe
+alternatives added.
 
-### 1. createLifecycleHook
+Removed: `onEnter`, `onExit` (redundant — createLifecycleHook covers
+all use cases including side-effect-only reactions).
+Removed: `World` as value export (use `createWorld` instead).
 
-Replaces raw `onEnter` + manual `addComponent` inside callbacks.
+### 1. createWorld
+
+```typescript
+const world = createWorld<Entity>();  // World<Readonly<Entity>>
+```
+
+Wraps Entity in `Readonly<E>` automatically. The Entity type does NOT
+need readonly annotations — the world handles it. All component keys
+on returned entities are readonly:
+
+- `entity.sprite = x` → compile error (assignment blocked)
+- `delete entity.sprite` → compile error (deletion blocked)
+- `entity.position.x += 10` → works (shallow — internals mutable)
+- `world.addComponent(entity, 'sprite', val)` → works (method call)
+
+Prevents: Issue 3 (direct mutation bypassing Miniplex indexing).
+
+### 2. createLifecycleHook
+
+Subscribe to entity lifecycle events with a typed `add` helper.
 
 ```typescript
 createLifecycleHook(world, enemySpawns, {
@@ -115,30 +136,13 @@ createLifecycleHook(world, enemySpawns, {
 });
 ```
 
-The `add` helper is fully typed — it calls `world.addComponent`
-internally. The consumer never touches `addComponent` in a callback.
+The `add` helper calls `world.addComponent` internally (verified safe
+in callbacks — all Miniplex checks are idempotent). The API shape
+naturally separates trigger components from built components, preventing
+circular query deadlocks.
 
-Prevents: Issue 2 (circular queries), Issue 4 (re-indexing during
-notification).
-
-### 2. Readonly Entity Component Keys
-
-Applied in the game's `types.ts`, not `ecs.ts`:
-
-```typescript
-export type Entity = {
-  readonly position?: Position;
-  readonly velocity?: Velocity;
-  readonly sprite?: Sprite;
-  // ...
-};
-```
-
-`entity.sprite = x` is a compile error. `entity.position.x = 5` still
-works (component internals remain mutable — systems need to update
-positions).
-
-Prevents: Issue 3 (direct mutation bypassing indexing).
+Prevents: Issue 2 (circular queries). Issue 4 is resolved — addComponent
+in callbacks is verified safe.
 
 ### 3. safeRemove
 
@@ -213,17 +217,17 @@ moving to the next phase. The "Study" section tells you what to read in
 +-----+==============+================================================+
 | #   | Aspect       | Detail                                         |
 +-----+==============+================================================+
-| 1   | You learn    | onEnter / onExit lifecycle, Teardown,          |
-|     |              | createLifecycleHook                            |
+| 1   | You learn    | Entity lifecycle (onEntityAdded /               |
+|     |              | onEntityRemoved), Teardown, createLifecycleHook |
 +-----+--------------+------------------------------------------------+
 | 2   | You build    | Lifecycle hook: when entity enters spawn query, |
 |     |              | create DOM sprite via add('sprite', ...).       |
 |     |              | When entity exits, remove sprite from DOM.      |
 |     |              | Render sync system: positions → CSS transforms  |
 +-----+--------------+------------------------------------------------+
-| 3   | Study first  | ecs.ts: createLifecycleHook, onEnter, onExit   |
+| 3   | Study first  | ecs.ts: createLifecycleHook                    |
 |     |              | Understand why trigger query must NOT include   |
-|     |              | components the builder creates (Issue 2)        |
+|     |              | components the builder creates (Gotcha 1)       |
 +-----+--------------+------------------------------------------------+
 | 4   | Framework    | createLifecycleHook — this is where it matters |
 |     | fix relevant | (prevents Issue 2 + 4)                         |
@@ -318,11 +322,79 @@ moving to the next phase. The "Study" section tells you what to read in
 Distilled from Guard the Gate. Violations of these rules produce silent
 bugs — no errors, no warnings, just wrong behavior.
 
-1. Trigger queries must NOT include components the lifecycle handler creates
-2. Never assign component directly — always `world.addComponent` or lifecycle `add` helper
+### Entity Mutation Rules
+
+These two rules govern ALL entity interaction. Everything else follows
+from them.
+
+**Rule A — Component SLOTS are immutable (managed by Miniplex)**
+Adding, replacing, or removing a component slot must go through
+`world.addComponent` / `world.removeComponent` / `safeRemove`.
+Direct assignment (`entity.sprite = x`) and deletion
+(`delete entity.sprite`) bypass Miniplex indexing — queries go stale,
+lifecycle hooks don't fire. Silent corruption.
+
+Enforced by: `createWorld<E>()` wraps the entity type in `Readonly<E>`.
+Both assignment and deletion are compile errors. No manual `readonly`
+annotations needed on the Entity type.
+
+**Rule B — Component VALUES are mutable (owned by systems)**
+Changing values inside an existing component (`entity.position.x += 10`)
+is safe and expected. Miniplex indexes on component *presence*, not
+component *values*. Systems need this to function.
+
+### Miniplex Gotchas
+
+Verified by reading Miniplex, Bucket, and eventery source code.
+
+**Gotcha 1 — Circular query deadlock**
+If a query requires component X, and the `onEntityAdded` callback for
+that query is responsible for creating X, the callback never fires.
+The entity needs X to enter the query, but X is only created by the
+callback that requires the entity to already be in the query.
+No error, no warning. Silent deadlock.
+
+Fix: the trigger query must only include components that exist at
+entity creation time. The callback adds the rest.
+
+**Gotcha 2 — `world.remove` inside callbacks**
+Calling `world.remove(entity)` inside an `onEntityAdded` callback for
+that same entity causes state corruption. The entity is removed from
+the world, but the outer reindex loop continues and re-adds the entity
+to queries — leaving an entity in queries but not in the world.
+
+Same applies to `onEntityRemoved` — double Bucket.remove corrupts the
+internal array (shuffle-pop on an already-removed entity).
+
+Fix: never remove an entity inside its own lifecycle callback. Push a
+removal event to a queue. The queue flushes after all systems, outside
+any callback.
+
+**What IS safe inside callbacks:**
+
+```
++-----+=========================+============+
+| #   | Operation               | Safe?      |
++-----+=========================+============+
+| 1   | world.addComponent      | YES        |
++-----+-------------------------+------------+
+| 2   | world.removeComponent   | YES        |
++-----+-------------------------+------------+
+| 3   | world.add (new entity)  | YES        |
++-----+-------------------------+------------+
+| 4   | world.remove (same      | NO         |
+|     | entity being processed) |            |
++-----+-------------------------+------------+
+```
+
+### Prevention Rules
+
+1. Never assign a component directly — always `world.addComponent` or lifecycle `add` helper
+2. Never `delete` a component — always `world.removeComponent`
 3. Never call `world.remove` directly — always `safeRemove`
-4. Input bridges translate events only — no game queries, no game decisions
-5. Game logic never reads render layer (DOM sizes, CSS values, element positions)
-6. Every component a system reads must be guaranteed by its query — no runtime guards
-7. Component changes take effect next frame — accept one-frame delay
-8. Every setup function's teardown must be registered with the collector
+4. Never call `world.remove` inside a lifecycle callback for the entity being processed
+5. Input bridges translate events only — no game queries, no game decisions
+6. Game logic never reads render layer (DOM sizes, CSS values, element positions)
+7. Every component a system reads must be guaranteed by its query — no runtime guards
+8. Component changes take effect next frame — accept one-frame delay
+9. Every setup function's teardown must be registered with the collector
