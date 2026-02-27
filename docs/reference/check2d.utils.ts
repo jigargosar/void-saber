@@ -1,4 +1,5 @@
 /* tslint:disable:cyclomatic-complexity */
+// @ts-nocheck
 
 import {
   testCircleCircle,
